@@ -9,6 +9,7 @@ function useOrder(orderId: string) {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [isAddingItem, setIsAddingItem] = useState(false)
 
   const loadOrder = useCallback(async () => {
@@ -29,10 +30,13 @@ function useOrder(orderId: string) {
 
   const handleAddItem = useCallback(
     async (payload: CreateMenuItemPayload) => {
+      setActionError(null)
       setIsAddingItem(true)
       try {
         const item = await addMenuItem(orderId, payload)
         setMenuItems((prev) => [...prev, item])
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : 'Failed to add item')
       } finally {
         setIsAddingItem(false)
       }
@@ -42,13 +46,18 @@ function useOrder(orderId: string) {
 
   const handleRemoveItem = useCallback(
     async (itemId: string) => {
-      await removeMenuItem(orderId, itemId)
-      setMenuItems((prev) => prev.filter((item) => item.id !== itemId))
+      setActionError(null)
+      try {
+        await removeMenuItem(orderId, itemId)
+        setMenuItems((prev) => prev.filter((item) => item.id !== itemId))
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : 'Failed to remove item')
+      }
     },
     [orderId],
   )
 
-  return { order, menuItems, loading, error, isAddingItem, handleAddItem, handleRemoveItem }
+  return { order, menuItems, loading, error, actionError, isAddingItem, handleAddItem, handleRemoveItem }
 }
 
 export default function OrderAdminPage() {
@@ -66,7 +75,7 @@ export default function OrderAdminPage() {
 }
 
 function OrderAdminPageInner({ orderId }: { orderId: string }) {
-  const { order, menuItems, loading, error, isAddingItem, handleAddItem, handleRemoveItem } =
+  const { order, menuItems, loading, error, actionError, isAddingItem, handleAddItem, handleRemoveItem } =
     useOrder(orderId)
 
   if (loading) {
@@ -88,11 +97,24 @@ function OrderAdminPageInner({ orderId }: { orderId: string }) {
   }
 
   return (
-    <MenuSetupCard
-      menuItems={menuItems}
-      onAddItem={handleAddItem}
-      onRemoveItem={handleRemoveItem}
-      isAddingItem={isAddingItem}
-    />
+    <div className="grid gap-4">
+      {actionError && (
+        <p
+          data-testid="order-error"
+          className="rounded-md px-4 py-2 text-sm"
+          style={{ color: 'var(--coral)', backgroundColor: 'var(--coral-light, #fff0ee)' }}
+          role="alert"
+          aria-live="polite"
+        >
+          {actionError}
+        </p>
+      )}
+      <MenuSetupCard
+        menuItems={menuItems}
+        onAddItem={handleAddItem}
+        onRemoveItem={handleRemoveItem}
+        isAddingItem={isAddingItem}
+      />
+    </div>
   )
 }

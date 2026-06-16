@@ -8,9 +8,30 @@ from app.models.menu_item import MenuItem
 from app.models.order import Order
 from app.repositories.menu_item_repository import MenuItemRepository
 from app.repositories.order_repository import OrderRepository
-from app.schemas.menu_item import MenuItemCreate
+from app.schemas.menu_item import MenuItemCreate, MenuItemRead
+from app.schemas.order import OrderRead
 
 logger = logging.getLogger(__name__)
+
+
+def _map_item_to_read(item: MenuItem) -> MenuItemRead:
+    price_val = item.price
+    return MenuItemRead(
+        id=item.id,
+        name=item.name,
+        price=str(price_val.quantize(Decimal("0.01"))) if price_val is not None else None,
+        category=item.category,
+    )
+
+
+def _map_order_to_read(order: Order) -> OrderRead:
+    menu_items = [_map_item_to_read(item) for item in (order.menu_items or [])]
+    return OrderRead(
+        id=order.id,
+        restaurant_name=order.restaurant_name,
+        state=order.state,
+        menu_items=menu_items,
+    )
 
 
 class OrderService:
@@ -19,21 +40,21 @@ class OrderService:
         self._order_repo = OrderRepository(session)
         self._item_repo = MenuItemRepository(session)
 
-    async def create_order(self) -> Order:
+    async def create_order(self) -> OrderRead:
         order = Order(restaurant_name=RESTAURANT_NAME, state="open")
         order = await self._order_repo.insert(order)
         await self._session.commit()
         await self._session.refresh(order)
         logger.info("Created order id=%s restaurant=%s", order.id, RESTAURANT_NAME)
-        return order
+        return _map_order_to_read(order)
 
-    async def get_order(self, order_id: uuid.UUID) -> Order:
+    async def get_order(self, order_id: uuid.UUID) -> OrderRead:
         order = await self._order_repo.get_by_id(order_id)
         if order is None:
             raise OrderNotFoundError(str(order_id))
-        return order
+        return _map_order_to_read(order)
 
-    async def add_menu_item(self, order_id: uuid.UUID, data: MenuItemCreate) -> MenuItem:
+    async def add_menu_item(self, order_id: uuid.UUID, data: MenuItemCreate) -> MenuItemRead:
         # Verify order exists
         order = await self._order_repo.get_by_id(order_id)
         if order is None:
@@ -72,7 +93,7 @@ class OrderService:
         await self._session.commit()
         await self._session.refresh(item)
         logger.info("Added menu item id=%s order_id=%s name=%s", item.id, order_id, name)
-        return item
+        return _map_item_to_read(item)
 
     async def remove_menu_item(self, order_id: uuid.UUID, item_id: uuid.UUID) -> None:
         # Verify order exists

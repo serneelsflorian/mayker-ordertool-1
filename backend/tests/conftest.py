@@ -41,7 +41,7 @@ def database_url():
         pytest.skip(f"Postgres not available (no DATABASE_URL and testcontainers failed: {exc})")
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def db_schema(database_url):
     """Create all tables once per test session, then drop at end."""
     engine = create_async_engine(database_url, echo=False)
@@ -70,7 +70,7 @@ async def db_schema(database_url):
     await engine2.dispose()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="function")
 async def db_session(db_schema):
     """Per-test async session. Truncates tables after each test."""
     database_url = db_schema
@@ -91,7 +91,7 @@ async def db_session(db_schema):
     await engine.dispose()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="function")
 async def client(db_session):
     """Async httpx client with session override."""
     async def override_get_session():

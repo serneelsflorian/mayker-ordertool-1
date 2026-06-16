@@ -7,7 +7,8 @@ import pytest
 from app.exceptions import MenuItemNotFoundError, OrderNotFoundError, ValidationError
 from app.models.menu_item import MenuItem
 from app.models.order import Order
-from app.schemas.menu_item import MenuItemCreate
+from app.schemas.menu_item import MenuItemCreate, MenuItemRead
+from app.schemas.order import OrderRead
 from app.services.order_service import OrderService
 
 
@@ -85,23 +86,28 @@ class TestCreateOrder:
         assert inserted.state == "open"
         mock_session.commit.assert_called_once()
 
-    async def test_create_order_returns_order(self, service, mock_order_repo, mock_session):
+    async def test_create_order_returns_order_read_dto(self, service, mock_order_repo, mock_session):
         order = _make_order()
         mock_order_repo.insert.return_value = order
         result = await service.create_order()
-        assert result == order
+        assert isinstance(result, OrderRead)
+        assert result.id == order.id
+        assert result.restaurant_name == order.restaurant_name
+        assert result.state == order.state
 
 
 # ---------- get_order ----------
 
 class TestGetOrder:
-    async def test_get_order_returns_order_when_found(
+    async def test_get_order_returns_order_read_dto_when_found(
         self, service, mock_order_repo
     ):
         order = _make_order()
         mock_order_repo.get_by_id.return_value = order
         result = await service.get_order(order.id)
-        assert result == order
+        assert isinstance(result, OrderRead)
+        assert result.id == order.id
+        assert result.restaurant_name == order.restaurant_name
 
     async def test_get_order_raises_not_found_when_missing(
         self, service, mock_order_repo
@@ -135,7 +141,10 @@ class TestAddMenuItem:
 
         mock_item_repo.insert.assert_called_once()
         mock_session.commit.assert_called_once()
-        assert result == item
+        assert isinstance(result, MenuItemRead)
+        assert result.id == item.id
+        assert result.name == item.name
+        assert result.price is None
 
     async def test_add_item_happy_path_with_price_and_category(
         self, service, mock_order_repo, mock_item_repo, mock_session
@@ -147,7 +156,9 @@ class TestAddMenuItem:
 
         data = MenuItemCreate(name="Margherita", price="9.50", category="Pizza")
         result = await service.add_menu_item(order.id, data)
-        assert result == item
+        assert isinstance(result, MenuItemRead)
+        assert result.price == "9.50"
+        assert result.category == "Pizza"
 
     async def test_add_item_with_price_exactly_two_decimals(
         self, service, mock_order_repo, mock_item_repo, mock_session
@@ -159,7 +170,8 @@ class TestAddMenuItem:
 
         data = MenuItemCreate(name="Pasta", price="12.99")
         result = await service.add_menu_item(order.id, data)
-        assert result == item
+        assert isinstance(result, MenuItemRead)
+        assert result.price == "12.99"
 
     async def test_add_item_empty_name_raises_validation_error(
         self, service, mock_order_repo

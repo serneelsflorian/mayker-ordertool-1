@@ -75,6 +75,8 @@ class TestAddMenuItem:
             json={"name": ""},
         )
         assert resp.status_code == 422
+        body = resp.json()
+        assert body["error"]["code"] == "VALIDATION_ERROR"
 
     async def test_post_menu_items_negative_price_returns_422(self, client):
         create_resp = await client.post("/api/orders")
