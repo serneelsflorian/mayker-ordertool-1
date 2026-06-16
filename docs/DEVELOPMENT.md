@@ -60,21 +60,20 @@ Because it uses OAuth, there is no token or team ID to paste or store: run `/mcp
 
 #### Git provider MCP, worked example: GitHub
 
-GitHub's official remote MCP server is also OAuth-capable:
+GitHub publishes an official remote MCP server at `https://api.githubcopilot.com/mcp/`. **Authenticate it with a Personal Access Token, not OAuth.** Claude Code's OAuth flow requires Dynamic Client Registration (RFC 7591), which this endpoint does not support, so the interactive "Authenticate" path fails with *"Incompatible auth server: does not support dynamic client registration."*
+
+Create a PAT with the scopes the agents need — classic: `repo` (add `workflow` if features touch `.github/workflows`); fine-grained: Contents, Pull requests, and Issues read/write plus Metadata read. Keep the token in your environment, never in `.mcp.json`:
 
 ```bash
-claude mcp add --scope project --transport http github https://api.githubcopilot.com/mcp/
-```
-
-Run `/mcp` to authenticate. If you prefer a personal access token (repo scope) over OAuth, add an auth header that references an environment variable rather than a literal token:
-
-```bash
+export GITHUB_PAT=ghp_your_real_token
 claude mcp add --scope project --transport http github \
   https://api.githubcopilot.com/mcp/ \
-  --header "Authorization: Bearer ${GITHUB_PAT}"
+  --header 'Authorization: Bearer ${GITHUB_PAT}'
 ```
 
-GitLab and Bitbucket follow the same pattern with their own MCP servers.
+The single quotes stop your shell expanding `${GITHUB_PAT}` during `claude mcp add`, so `.mcp.json` stores only the variable name; Claude Code expands it at runtime. Run `/mcp` to confirm the connection.
+
+> GitLab and Bitbucket publish their own MCP servers. If their auth server supports OAuth Dynamic Client Registration, the OAuth flow works; otherwise use the same PAT-in-header pattern.
 
 #### Keeping token-based secrets out of git
 
@@ -84,7 +83,7 @@ GitLab and Bitbucket follow the same pattern with their own MCP servers.
 export GITHUB_PAT=ghp_your_real_token
 ```
 
-OAuth servers (such as the official ClickUp and GitHub ones above) avoid this entirely, since there is no token to store.
+OAuth servers (such as the official ClickUp one above) avoid this entirely, since there is no token to store. GitHub, authenticated by PAT here, follows the variable-reference pattern.
 
 #### Figma MCP (optional)
 
@@ -115,28 +114,15 @@ Tune the allow/deny lists for your stack. For Claude Code on the web, the enviro
 
 ### 3. Repository Secrets (for CI/CD)
 
-<!--
-  /init-project replaces this with exact secret names and platform-specific
-  instructions for the configured tracker and Git provider.
--->
-
-The CI pipelines require secrets to be configured in your repository settings. These enable the auto-Done pipeline to transition features in your tracker when PRs are merged.
+This project uses **ClickUp** as the issue tracker and **GitHub** as the Git provider, so the auto-Done pipeline (`.github/workflows/auto-done.yml`) needs exactly one secret:
 
 | Secret | Purpose | Where to get it | Where to add it |
 | --- | --- | --- | --- |
-| `{TRACKER}_API_KEY` | Auto-transition features to Done on merge | Your issue tracker's API settings | Your Git provider's repository secrets settings |
+| `CLICKUP_API_KEY` | Lets the auto-Done pipeline transition a feature's ClickUp task to **done** when its PR merges to `main` (via `PUT https://api.clickup.com/api/v2/task/{task_id}`) | ClickUp → **Settings → Apps → API Token** (a personal token starting `pk_`) | GitHub → repo **Settings → Secrets and variables → Actions → New repository secret** |
 
-**Platform-specific instructions:**
+> The ClickUp REST API expects the token directly in the `Authorization` header (no `Bearer` prefix); the pipeline handles that. The token is a personal token tied to the account that created it, so it must have access to the **DEMO - Order tool** space (workspace `30307190`).
 
-- **GitHub:** Repository → Settings → Secrets and variables → Actions → New repository secret
-- **GitLab:** Repository → Settings → CI/CD → Variables (set as masked + protected)
-- **Bitbucket:** Repository → Repository settings → Pipelines → Repository variables (set as secured)
-
-**Tracker-specific API key locations:**
-
-- **Linear:** Linear → Settings → Account → API → Personal API keys → Create key
-- **ClickUp:** ClickUp → Settings → Apps → API Token
-- **Jira:** Atlassian → Account → Security → API tokens → Create API token (also requires `JIRA_EMAIL` secret)
+The PR test pipeline (`.github/workflows/pr-tests.yml`) needs **no secrets** — it spins up an ephemeral Postgres 16 service for backend tests and a Docker Compose stack for E2E entirely within the runner.
 
 ### 4. Development Environment
 

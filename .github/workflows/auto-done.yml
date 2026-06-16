@@ -1,0 +1,131 @@
+name: Auto-Done on Merge
+
+# Triggers when a PR is merged to main. Extracts the feature ID from the branch
+# name, looks up its ClickUp task ID and the "done" status name in
+# .claude/project_state.json, and transitions the task via the ClickUp REST API.
+#
+# This runs in CI, NOT in Claude Code, so it cannot use MCP — it calls the
+# ClickUp REST API directly using the CLICKUP_API_KEY repository secret.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+jobs:
+  transition-to-done:
+    name: Transition feature to Done
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Transition ClickUp task to Done
+        env:
+          CLICKUP_API_KEY: ${{ secrets.CLICKUP_API_KEY }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if [ -z "$CLICKUP_API_KEY" ]; then
+            echo "::error::CLICKUP_API_KEY secret is not set. Add it in repo Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.request
+
+          branch = os.environ["HEAD_REF"]
+          with open(".claude/project_state.json", encoding="utf-8") as fh:
+              state = json.load(fh)
+
+          features = state["features"]
+          done_status = state["status_mapping"]["done"]
+
+          # Match the branch against known feature IDs (and their external
+          # identifiers): for each, test feature/<id> followed by '-' or end.
+          # Take the longest matching ID so IDs that contain hyphens or share a
+          # prefix are not misparsed by a greedy regex.
+          candidates = set()
+          for fid, meta in features.items():
+              candidates.add(fid)
+              ident = meta.get("external_identifier")
+              if ident:
+                  candidates.add(ident)
+
+          matched = None
+          for cand in sorted(candidates, key=len, reverse=True):
+              prefix = f"feature/{cand}"
+              if branch == prefix or branch.startswith(prefix + "-"):
+                  matched = cand
+                  break
+
+          # Resolve the matched candidate back to a framework feature ID.
+          feature_id = None
+          if matched:
+              for fid, meta in features.items():
+                  if matched in (fid, meta.get("external_identifier")):
+                      feature_id = fid
+                      break
+
+          if not feature_id:
+              # Fallback regex: feature/<LETTERS-DIGITS>-...
+              import re
+              m = re.match(r"feature/([A-Za-z]+-[0-9]+)-", branch)
+              if m and m.group(1) in features:
+                  feature_id = m.group(1)
+
+          if not feature_id:
+              print(f"No known feature ID found in branch '{branch}'. Skipping auto-Done.")
+              sys.exit(0)
+
+          task_id = features[feature_id]["external_id"]
+          print(f"Transitioning {feature_id} (ClickUp task {task_id}) to '{done_status}'.")
+
+          req = urllib.request.Request(
+              f"https://api.clickup.com/api/v2/task/{task_id}",
+              method="PUT",
+              data=json.dumps({"status": done_status}).encode("utf-8"),
+              headers={
+                  "Authorization": os.environ["CLICKUP_API_KEY"],
+                  "Content-Type": "application/json",
+              },
+          )
+          try:
+              with urllib.request.urlopen(req) as resp:
+                  print(f"ClickUp responded {resp.status}.")
+          except urllib.error.HTTPError as err:
+              body = err.read().decode("utf-8", "replace")
+              print(f"::error::ClickUp API returned {err.code}: {body}")
+              sys.exit(1)
+          PY
+
+  uat:
+    name: UAT Gherkin (on merge)
+    needs: transition-to-done
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: |
+          if compgen -G "e2e/uat/scenarios/*.feature" >/dev/null; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No UAT scenarios found; skipping (UAT Generation is OPTIONAL)."
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.present == 'true'
+        with:
+          node-version: "20"
+      - name: Run UAT scenarios
+        if: steps.check.outputs.present == 'true'
+        run: |
+          docker compose up -d --build
+          npm ci
+          npx playwright install --with-deps
+          npx playwright test e2e/uat
+          docker compose down -v

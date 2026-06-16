@@ -1,0 +1,62 @@
+{
+  "issue_tracker": {
+    "provider": "clickup",
+    "mcp_server": "clickup",
+    "workspace_id": "30307190",
+    "project": { "id": "901523929704", "name": "Backlog" },
+    "team": { "id": "901511195692", "name": "DEMO - Order tool" }
+  },
+  "git_provider": {
+    "provider": "github",
+    "repository": "serneelsflorian/mayker-ordertool-1"
+  },
+  "status_mapping": {
+    "todo": "to do",
+    "planning": "planning",
+    "plan_review": "planning review",
+    "ready_for_build": "ready for build",
+    "in_progress": "in progress",
+    "in_review": "in review",
+    "done": "done"
+  },
+  "reverse_status_mapping": {
+    "to do": "todo",
+    "planning": "planning",
+    "planning review": "plan_review",
+    "ready for build": "ready_for_build",
+    "in progress": "in_progress",
+    "in review": "in_review",
+    "done": "done",
+    "complete": "done"
+  },
+  "features": {
+    "STORY-1": {
+      "external_id": "86ca9md8h",
+      "external_identifier": "86ca9md8h"
+    },
+    "STORY-2": {
+      "external_id": "86ca9mdbu",
+      "external_identifier": "86ca9mdbu"
+    },
+    "STORY-3": {
+      "external_id": "86ca9mdf4",
+      "external_identifier": "86ca9mdf4"
+    },
+    "STORY-4": {
+      "external_id": "86ca9mdh1",
+      "external_identifier": "86ca9mdh1"
+    },
+    "STORY-5": {
+      "external_id": "86ca9mdkk",
+      "external_identifier": "86ca9mdkk"
+    },
+    "STORY-6": {
+      "external_id": "86ca9mdq6",
+      "external_identifier": "86ca9mdq6"
+    },
+    "STORY-7": {
+      "external_id": "86ca9pmhx",
+      "external_identifier": "86ca9pmhx"
+    }
+  }
+}

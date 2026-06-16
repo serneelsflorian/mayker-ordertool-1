@@ -233,6 +233,7 @@ If `CLAUDE.md` still has placeholder sections (Design Reference, API References,
 - `[TRACKER_NAME]` → actual tracker name (e.g., "Linear")
 - `[GIT_PROVIDER_NAME]` → actual provider name (e.g., "GitHub")
 - The Prerequisites section must contain concrete, actionable setup steps (the exact `claude mcp add` commands for each provider) — not placeholders.
+- If the Git provider is **GitHub**, document the **PAT-in-header** setup (`--header 'Authorization: Bearer ${GITHUB_PAT}'`), not OAuth — Claude Code's OAuth flow needs Dynamic Client Registration, which the GitHub MCP endpoint does not support.
 - The CI/CD section must list the exact secret names and where to configure them.
 - The "Running the project" section stays as placeholder (filled by first `/build-feature`).
 

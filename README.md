@@ -1,6 +1,8 @@
-# [Project Name]
+# Mayker Order Tool
 
-Application repository. See below for setup instructions and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full AI development workflow.
+A group food-ordering web app for a single, preselected restaurant. An admin enters the restaurant's menu, generates a shareable link, and distributes it to the team. Anyone with the link (a "guest", no account) opens it, self-identifies by name, selects items with optional per-item notes and quantities, and sees a running subtotal of their own selections. When everyone is done, the admin closes the order (final), exports a consolidated list grouped by item for manual re-entry into Deliveroo, and can email that overview. Order state lives server-side (Postgres), keyed by the order ID in the share URL (`/order/:id`), so it survives refreshes and works across browsers/sessions.
+
+See below for setup instructions and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full AI development workflow.
 
 This project uses a Claude Code-driven, per-feature delivery framework: a human fills in `CLAUDE.md`, runs `/init-project` once, then dispatches autonomous Claude Code sessions (one per feature) through a fixed pipeline: plan → review → build → review → merge → auto-Done.
 
@@ -44,13 +46,18 @@ claude mcp add --scope project --transport http clickup https://mcp.clickup.com/
 
 Then run `/mcp` and approve ClickUp in the browser (you choose the workspace there).
 
-#### Example: GitHub as the Git provider (official remote server)
+#### Example: GitHub as the Git provider (official remote server, PAT)
+
+Authenticate GitHub with a **Personal Access Token in a header, not OAuth.** Claude Code's OAuth flow requires Dynamic Client Registration, which the GitHub MCP endpoint does not support — the interactive "Authenticate" path fails with *"Incompatible auth server: does not support dynamic client registration."*
 
 ```bash
-claude mcp add --scope project --transport http github https://api.githubcopilot.com/mcp/
+export GITHUB_PAT=ghp_your_real_token   # keep the real token in your shell / CI secrets, never in .mcp.json
+claude mcp add --scope project --transport http github \
+  https://api.githubcopilot.com/mcp/ \
+  --header 'Authorization: Bearer ${GITHUB_PAT}'
 ```
 
-Run `/mcp` to authenticate. Prefer a token instead? Add `--header "Authorization: Bearer ${GITHUB_PAT}"` and keep the real token in your environment, never in `.mcp.json`. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the secret-handling details.
+The single quotes stop your shell expanding `${GITHUB_PAT}` during `claude mcp add`, so `.mcp.json` stores only the variable name; Claude Code expands it at runtime. Then run `/mcp` to confirm GitHub is connected. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the secret-handling details.
 
 #### Figma MCP (optional, only if Design Reference mode is FIGMA_MCP)
 
@@ -66,16 +73,11 @@ Autonomous (cloud) runs must not stop to ask for approvals. The permission postu
 
 ### Repository secrets (for CI/CD)
 
-<!--
-  /init-project replaces this section with the exact secret names,
-  where to get them, and platform-specific configuration instructions.
--->
-
-The CI pipelines require these secrets to be configured in your repository:
+The CI pipelines require this secret to be configured in the repository:
 
 | Secret | Purpose | Where to get it | Where to add it |
 | --- | --- | --- | --- |
-| [SECRET_NAME] | Auto-transition features to Done on merge | [PROVIDER_INSTRUCTIONS] | [PLATFORM_INSTRUCTIONS] |
+| `CLICKUP_API_KEY` | Lets the auto-Done pipeline transition a feature's ClickUp task to **done** when its PR merges to `main` | ClickUp → Settings → Apps → API Token (personal token, `pk_...`) | GitHub → repo **Settings → Secrets and variables → Actions → New repository secret** |
 
 ### Development environment
 
@@ -125,9 +127,9 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the complete guide. Quick sum
 
 ## CI/CD
 
-<!--
-  /init-project replaces this section with specifics about what
-  pipelines were generated and what secrets are required.
--->
+Two GitHub Actions workflows are generated under `.github/workflows/`:
 
-> CI pipeline details will be added by /init-project.
+- **`pr-tests.yml`** — runs on PR open / push to a PR branch. A `detect` job inspects the repo layout, then guarded jobs run only when the relevant infrastructure exists: backend unit + integration tests (`pytest` against a Postgres 16 service), frontend lint + build (`npm`), and E2E tests (Playwright against the Docker Compose stack). Until the scaffold feature (STORY-1) creates `backend/`, `frontend/`, and `docker-compose.yml`, the guarded jobs skip, so the scaffold PR is never blocked by missing setup. E2E is ENABLED, so it blocks merge once present.
+- **`auto-done.yml`** — runs when a PR merges to `main`. It extracts the feature ID from the branch name (`feature/{FEATURE_ID}-…`, matched against the known IDs in `.claude/project_state.json`), looks up the ClickUp task ID and the mapped `done` status, and transitions the task via the ClickUp REST API using `CLICKUP_API_KEY`. It then runs UAT Gherkin scenarios if any exist (UAT generation is OPTIONAL for this project).
+
+Add the `CLICKUP_API_KEY` secret (see [Repository secrets](#repository-secrets-for-cicd) above) before merging the first feature, or the auto-Done step will fail.
