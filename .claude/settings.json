@@ -39,7 +39,8 @@
       "Bash(docker:*)",
       "Bash(docker compose:*)",
       "Bash(docker-compose:*)",
-      "mcp__*"
+      "mcp__clickup__*",
+      "mcp__github__*"
     ],
     "deny": [
       "Bash(rm -rf:*)",

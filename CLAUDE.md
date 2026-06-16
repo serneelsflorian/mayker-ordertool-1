@@ -25,7 +25,23 @@
      Stripe and internal billing systems. No frontend."
 -->
 
-[TO BE COMPLETED — describe what the app is, what it does, and who it is for.]
+A group food-ordering web app for a single, preselected (hardcoded) restaurant.
+An admin enters the restaurant's menu, generates a shareable link, and distributes
+it to their team. Anyone holding the link (a "guest" — no account, identified by a
+name they type) opens it, selects menu items with optional per-item notes and
+quantities, and sees a running subtotal of only their own selections. When everyone
+is done, the admin closes the order (final, non-reopenable) and exports a
+consolidated list — grouped by item, with quantities and notes — as copy-paste
+text to manually re-enter into Deliveroo. The admin can also email that overview to
+a recipient (with optional CC/BCC). There is NO programmatic submission to Deliveroo.
+
+Order state is shared across everyone with the link, keyed by an order identifier in
+the share URL (e.g. `/order/:id`), and must persist across page refreshes and survive
+across sessions/browsers. This is the central architectural constraint: state lives
+server-side, not in browser-local storage.
+
+Audience: small teams placing a shared group order. Single role (admin); everyone
+else is an unauthenticated link-holder. Built as a demo.
 
 ## Tech Stack
 
@@ -35,11 +51,12 @@
   Remove lines that don't apply (e.g., remove Backend if frontend-only).
 -->
 
-- **Frontend:** [TO BE COMPLETED — e.g. React, TypeScript, Vite, Tailwind CSS]
-- **Backend:** [TO BE COMPLETED — e.g. FastAPI, Python 3.12+, Pydantic]
-- **Database:** [TO BE COMPLETED — e.g. PostgreSQL]
-- **Testing:** [TO BE COMPLETED — e.g. pytest (unit/integration), Playwright (E2E)]
-- **Containerization:** [TO BE COMPLETED — e.g. Docker, Docker Compose]
+- **Frontend:** React, TypeScript, Vite, Tailwind CSS, React Router (for `/order/:id` routing)
+- **Backend:** FastAPI, Python 3.12+, Pydantic v2, SQLAlchemy 2.x (async), Uvicorn
+- **Database:** PostgreSQL 16
+- **Email:** server-side transactional email for Story 6 (e.g. SMTP or a provider like Resend/SendGrid), invoked from the FastAPI backend — never from the frontend
+- **Testing:** pytest (unit/integration, with httpx async test client), Playwright (E2E, TypeScript)
+- **Containerization:** Docker, Docker Compose (frontend, backend, Postgres)
 
 ## MCP Configuration
 
@@ -58,11 +75,11 @@
   then verify with `claude mcp list` (or `/mcp` inside a session).
 -->
 
-- **Issue Tracker Provider:** [TO BE COMPLETED — linear | clickup | jira]
-- **Issue Tracker Project:** [REPLACE — your project name as it appears in the workspace]
-- **Issue Tracker Team:** [REPLACE — your team/space name, if applicable]
-- **Git Provider:** [TO BE COMPLETED — github | gitlab | bitbucket]
-- **Repository:** [REPLACE — owner/repo-name]
+- **Issue Tracker Provider:** clickup
+- **Issue Tracker Project:** DEMO - Order tool
+- **Issue Tracker Team:** DEMO - Order tool (space) — workspace ID 30307190, Backlog list ID 901523929704
+- **Git Provider:** github
+- **Repository:** serneelsflorian/mayker-ordertool-1
 
 ## Design Reference
 
@@ -75,19 +92,8 @@
     NONE      — No design reference; AI freestyles the UI
 -->
 
-- **Mode:** [TO BE COMPLETED — REPO_DIR | FIGMA_MCP | URL | NONE]
-- **Path/URL:** [TO BE COMPLETED]
-
-## API References (optional)
-
-<!--
-  External API specifications the project consumes. List file paths
-  (committed to the repo) or URLs. Supported formats: OpenAPI/Swagger
-  YAML/JSON, Postman collection JSON, or plain markdown endpoint docs.
-  Remove this section entirely if not applicable.
--->
-
-[TO BE COMPLETED or remove this section if not applicable.]
+- **Mode:** REPO_DIR
+- **Path/URL:** docs/prototype
 
 ## Test Configuration
 
@@ -99,29 +105,29 @@
 
 ### Unit & Integration Tests
 
-- **Unit test directory:** [e.g. tests/unit/]
-- **Integration test directory:** [e.g. tests/integration/]
-- **Unit test naming:** [e.g. test_{module}_unit.py]
-- **Integration test naming:** [e.g. test_{module}_integration.py]
-- **Shared fixtures file:** [e.g. tests/conftest.py]
+- **Unit test directory:** backend/tests/unit/
+- **Integration test directory:** backend/tests/integration/
+- **Unit test naming:** test_{module}_unit.py
+- **Integration test naming:** test_{module}_integration.py
+- **Shared fixtures file:** backend/tests/conftest.py
 
 ### E2E Tests
 
-- **Framework:** [e.g. Playwright (TypeScript)]
-- **Config file:** [e.g. playwright.config.ts (project root)]
-- **Test directory:** [e.g. e2e/tests/]
-- **Helpers directory:** [e.g. e2e/helpers/]
-- **File naming:** [e.g. {feature_id}_{slug}.spec.ts]
-- **Base URL:** [e.g. http://localhost:5173]
+- **Framework:** Playwright (TypeScript)
+- **Config file:** playwright.config.ts (project root)
+- **Test directory:** e2e/tests/
+- **Helpers directory:** e2e/helpers/
+- **File naming:** {feature_id}_{slug}.spec.ts
+- **Base URL:** http://localhost:5173
 
 ### UAT Tests
 
-- **Scenarios directory:** [e.g. e2e/uat/scenarios/]
-- **Scripts directory:** [e.g. e2e/uat/scripts/]
-- **Screenshots directory:** [e.g. e2e/uat/screenshots/ (gitignored)]
-- **Reports directory:** [e.g. e2e/uat/reports/ (gitignored)]
-- **Gherkin file naming:** [e.g. {feature_id}_{slug}.feature]
-- **Manual script naming:** [e.g. {feature_id}_{slug}_uat_script.md]
+- **Scenarios directory:** e2e/uat/scenarios/
+- **Scripts directory:** e2e/uat/scripts/
+- **Screenshots directory:** e2e/uat/screenshots/ (gitignored)
+- **Reports directory:** e2e/uat/reports/ (gitignored)
+- **Gherkin file naming:** {feature_id}_{slug}.feature
+- **Manual script naming:** {feature_id}_{slug}_uat_script.md
 
 ## Feature Toggles
 
@@ -149,7 +155,38 @@
   Remove this section if no special architectural guidance is needed.
 -->
 
-[TO BE COMPLETED or remove this section if no special guidance is needed.]
+Two product decisions must NOT be re-derived or guessed by agents — they are fixed:
+
+1. **Shared, server-persisted order state keyed by URL.** Order state is shared
+   across everyone holding the link, keyed by the order identifier in the share URL
+   (`/order/:id`). It is persisted server-side (Postgres) and must survive page
+   refresh and work across different browsers/sessions. Do NOT implement order state
+   with browser localStorage/sessionStorage — those do not satisfy the cross-session
+   sharing requirement. The frontend reads/writes state via the FastAPI backend.
+
+2. **Export merge rule.** In the consolidated export, line items merge ONLY when both
+   the item AND its note match exactly. Items with different notes remain separate
+   lines (e.g. `3x Margherita` but `1x Margherita - no onions` listed separately).
+
+Other guidance:
+
+- **Single role.** There is exactly one privileged role, the admin. Everyone else is
+  an unauthenticated link-holder who self-identifies by typing a name; there are no
+  accounts, logins, or permissions for guests. Guests can only see/edit/remove their
+  own selections, never others'.
+- **Order lifecycle is one-way.** open → closed. Closing is final and cannot be
+  reopened from the UI. Closed state must be enforced server-side so add/edit/remove
+  is rejected across all sessions, not just hidden in the UI.
+- **Restaurant is hardcoded** for the demo (not editable, no restaurant CRUD).
+- **No external integrations.** Deliveroo is manual re-entry only; there is no
+  programmatic submission to Deliveroo or any third-party ordering API.
+- **Email is server-side and demo-only (Story 6).** The "bill will be sent shortly"
+  message is an intentional, clearly light-hearted prank. Send only to addresses the
+  admin is entitled to use, keep the joke unambiguous in the body, and never send
+  email from the frontend — route it through the backend.
+- **Suggested layout:** `backend/` (FastAPI app + tests), `frontend/` (Vite/React),
+  `e2e/` (Playwright + UAT), with Docker Compose at the root wiring frontend, backend,
+  and Postgres.
 
 ---
 

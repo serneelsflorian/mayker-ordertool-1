@@ -34,6 +34,12 @@ description: Implement one feature from an approved plan. Use when running /buil
 1. Read `depends_on` from `feature_map.md`.
 2. Query MCP for each dependency's status.
 3. If **any** dependency is not `done`, **STOP:** "⛔ BLOCKED: {FEATURE_ID} depends on {DEP_IDS}. All must be Done."
+4. **Scaffold precedence gate.** The scaffold feature creates the project infrastructure every other feature builds on, but it is an *implicit* dependency that never appears in any `depends_on` list. Enforce it explicitly:
+   - Identify the scaffold feature in `feature_map.md` (the row flagged `scaffold: ✅`).
+   - If **this** feature is the scaffold feature, skip this gate.
+   - Otherwise look up the scaffold feature's `external_id` in `project_state.json`, query its status via the issue tracker MCP, and map it through `reverse_status_mapping`.
+   - If the scaffold feature is **not** `done`, **STOP:** "⛔ BLOCKED: {FEATURE_ID} cannot proceed until the scaffold feature {SCAFFOLD_ID} is Done — it creates the project infrastructure all features depend on."
+   - If no feature is flagged as scaffold (e.g. an existing codebase with no scaffold phase), skip this gate.
 
 ---
 

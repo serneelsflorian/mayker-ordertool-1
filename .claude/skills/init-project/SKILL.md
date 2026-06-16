@@ -135,6 +135,21 @@ See `.claude/rules/mcp_integration.md` Section 1.1 for the exact schema.
 
 ---
 
+## 5.1 Sync MCP Permission Allow-List (`.claude/settings.json`)
+
+The committed `.claude/settings.json` allow-list must name the **actual** MCP servers, or autonomous runs will stop to ask for approval (cloud sessions then stall). Claude Code rejects a bare `mcp__*` in allow rules — a glob is valid only in the tool position **after** a literal `mcp__<server>__` prefix.
+
+1. Read the server keys from `.mcp.json` (e.g. `clickup`, `github`).
+2. Open `.claude/settings.json`. In `permissions.allow`:
+   - Ensure exactly one `mcp__<server>__*` entry per server key in `.mcp.json`.
+   - Remove any bare `mcp__*` entry and any stale `mcp__<other>__*` that no longer corresponds to a configured server.
+   - **Leave every non-MCP entry untouched** — the rest of the allow/deny list is the user's to tune.
+3. Re-read the file to confirm it still parses as JSON and that no bare `mcp__*` remains.
+
+> **Three-file sync contract.** `.mcp.json` (server definitions), `.claude/settings.json` (the `mcp__<server>__*` allow entries), and `CLAUDE.md` → MCP Configuration (provider names) must all agree. `/init-project` is the single owner that reconciles them; if you change providers later, re-run it.
+
+---
+
 ## 6. Generate CI Pipelines
 
 Read the Git provider from `CLAUDE.md` → MCP Configuration to determine the CI platform:
@@ -161,7 +176,7 @@ Generate a CI pipeline that triggers when a PR is merged to main/master.
 
 The pipeline must:
 
-1. Extract the feature ID from the branch name using pattern matching: `feature/{FEATURE_ID}-*` → capture `{FEATURE_ID}`.
+1. Extract the feature ID from the branch name. Branches follow `feature/{FEATURE_ID}-{slug}`, but a naive greedy regex misparses IDs that themselves contain hyphens (e.g. `US-101` in `feature/US-101-user-login`). Match **against the known feature IDs in `project_state.json`** instead: for each `FEATURE_ID` (and its `external_identifier`), test whether the branch matches `^feature/<id>(-|$)`; take the longest match. Fall back to the regex `feature/([A-Za-z]+-[0-9]+)-` only if no known ID matches.
 2. Read `.claude/project_state.json` to look up the feature's `external_id` and the `done` status name from `status_mapping`.
 3. Call the tracker's REST API to transition the feature to Done:
    - **Linear API:** `POST https://api.linear.app/graphql` with mutation to update issue state. Requires `LINEAR_API_KEY` secret.
