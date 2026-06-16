@@ -14,7 +14,7 @@ export default function HomePage() {
       .then((order) => {
         navigate(`/order/${order.id}`, { replace: true })
       })
-      .catch((_err: unknown) => {
+      .catch(() => {
         // Order creation failed; stay on page so user sees the loading message
       })
   }, [navigate])
