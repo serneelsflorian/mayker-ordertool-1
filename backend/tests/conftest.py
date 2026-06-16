@@ -3,6 +3,7 @@ import os
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.main import app
@@ -28,15 +29,22 @@ def database_url():
     try:
         from testcontainers.postgres import PostgresContainer
         with PostgresContainer("postgres:16") as pg:
-            yield pg.get_connection_url().replace("psycopg2", "asyncpg").replace("postgresql://", "postgresql+asyncpg://")
+            raw = pg.get_connection_url()
+            asyncpg_url = (
+                raw
+                .replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+                .replace("postgresql://", "postgresql+asyncpg://")
+                .replace("psycopg2://", "asyncpg://")
+            )
+            yield asyncpg_url
     except Exception as exc:
         pytest.skip(f"Postgres not available (no DATABASE_URL and testcontainers failed: {exc})")
 
 
 @pytest_asyncio.fixture(scope="session")
-async def db_engine(database_url):
+async def db_schema(database_url):
+    """Create all tables once per test session, then drop at end."""
     engine = create_async_engine(database_url, echo=False)
-    # Run migrations or create tables directly
     try:
         import subprocess
         import sys
@@ -48,38 +56,39 @@ async def db_engine(database_url):
             text=True,
         )
         if result.returncode != 0:
-            # Fallback: create tables directly
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
     except Exception:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-
-    yield engine
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
+    yield database_url
+    # Cleanup after all tests
+    engine2 = create_async_engine(database_url, echo=False)
+    async with engine2.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await engine2.dispose()
 
 
 @pytest_asyncio.fixture
-async def db_session(db_engine):
-    """Per-test session with rollback isolation."""
-    connection = await db_engine.connect()
-    await connection.begin()
+async def db_session(db_schema):
+    """Per-test async session. Truncates tables after each test."""
+    database_url = db_schema
+    engine = create_async_engine(database_url, echo=False)
     session_factory = async_sessionmaker(
-        bind=connection,
+        bind=engine,
         expire_on_commit=False,
         class_=AsyncSession,
-        join_transaction_mode="create_savepoint",
     )
     session = session_factory()
 
     yield session
 
     await session.close()
-    await connection.rollback()
-    await connection.close()
+    # Truncate for isolation
+    async with engine.begin() as conn:
+        await conn.execute(text("TRUNCATE TABLE menu_items, orders RESTART IDENTITY CASCADE"))
+    await engine.dispose()
 
 
 @pytest_asyncio.fixture
