@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --teal: #269A91;
+  --teal-600: #1f857d;
+  --coral: #D44858;
+  --coral-600: #b93b48;
+  --bluegrey: #9ABFCB;
+  --taupe: #A39286;
+  --bg-soft: #F6F4F1;
+}

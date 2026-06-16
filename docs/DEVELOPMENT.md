@@ -126,7 +126,61 @@ The PR test pipeline (`.github/workflows/pr-tests.yml`) needs **no secrets** —
 
 ### 4. Development Environment
 
-> Specific requirements (Docker, Node.js, Python versions, etc.) depend on the tech stack configured in `CLAUDE.md` and will be documented here after the scaffold feature creates the project infrastructure.
+#### Minimum versions
+
+| Tool | Version | Notes |
+| --- | --- | --- |
+| Docker | 24+ | Required for the full composed stack |
+| Docker Compose | v2 (plugin) | Ships with Docker Desktop; verify with `docker compose version` |
+| Python | 3.12+ | For backend development outside Docker |
+| Node.js | 20+ | For frontend development and E2E tests outside Docker |
+
+All three services (frontend, backend, Postgres 16) are wired in `docker-compose.yml`. Running the stack with `docker compose up --build` is the recommended approach — no local Python or Node installation is needed for everyday development.
+
+For local development without Docker, create a virtual environment, install backend dependencies, set `DATABASE_URL` to point at a running Postgres 16 instance, and use `uvicorn app.main:app --reload` from `backend/`. For the frontend, run `npm install && npm run dev` from `frontend/`. See the README for environment variable details.
+
+#### Running tests locally
+
+**Backend unit tests** (no database required):
+```bash
+cd backend
+pytest tests/unit
+```
+
+**Backend integration tests** (requires a running Postgres 16 instance):
+```bash
+# Option A: start only Postgres via Docker Compose
+docker compose up -d postgres
+
+# Then run with the connection string
+DATABASE_URL=postgresql+asyncpg://ordertool:ordertool@localhost:5432/ordertool pytest tests/integration
+
+# Option B: the test suite auto-starts a Postgres container via testcontainers
+# if DATABASE_URL is not set and Docker is available
+pytest tests/integration
+```
+
+**Frontend build and lint** (no server required):
+```bash
+cd frontend
+npm ci
+npm run lint
+npm run build
+```
+
+**E2E tests** (requires the full composed stack running):
+```bash
+# 1. Start the stack
+docker compose up --build -d
+
+# 2. From the project root, run Playwright
+npx playwright test
+
+# Or use the npm script
+npm run test:e2e
+```
+
+Playwright runs against `http://localhost:5173` (configured in `playwright.config.ts`). The `e2e/helpers/order.ts` seed helpers call the backend API directly to set up test data.
 
 ---
 

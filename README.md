@@ -10,7 +10,46 @@ This project uses a Claude Code-driven, per-feature delivery framework: a human 
 
 ## Running the project
 
-> Run instructions will be added when the first feature scaffolds the project infrastructure.
+### Quick start with Docker Compose (recommended)
+
+```bash
+# 1. Copy the example env file and adjust values if needed
+cp .env.example .env
+
+# 2. Build and start all services
+docker compose up --build
+```
+
+Once the stack is healthy, open:
+
+| Service | URL |
+| --- | --- |
+| Frontend (Vite/Nginx) | http://localhost:5173 |
+| Backend (FastAPI docs) | http://localhost:8000/docs |
+| Postgres 16 | `localhost:5432` (only for direct DB access) |
+
+The first startup runs Alembic migrations automatically. Subsequent starts skip them if the schema is already up to date.
+
+To stop and remove volumes (clean slate):
+```bash
+docker compose down -v
+```
+
+### Environment variables
+
+Copy `.env.example` to `.env` before starting. The file contains:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `POSTGRES_USER` | `ordertool` | Postgres superuser name |
+| `POSTGRES_PASSWORD` | `ordertool` | Postgres superuser password |
+| `POSTGRES_DB` | `ordertool` | Database name |
+| `DATABASE_URL` | derived | Full async DSN used by the backend |
+| `BACKEND_PORT` | `8000` | Host port for the FastAPI container |
+| `FRONTEND_PORT` | `5173` | Host port for the Nginx/frontend container |
+| `VITE_API_BASE_URL` | `/api` | Backend base path (proxied by Nginx in Docker) |
+
+Do not commit `.env` — it is gitignored. Only `.env.example` is committed.
 
 ---
 
@@ -81,7 +120,15 @@ The CI pipelines require this secret to be configured in the repository:
 
 ### Development environment
 
-> Specific requirements (Docker, Node.js, Python versions, etc.) will be documented here after the scaffold feature is built.
+**To run the full stack (production-like):** Docker 24+ and Docker Compose v2 are the only requirements.
+
+**For local non-Docker development:**
+
+| Tool | Minimum version |
+| --- | --- |
+| Docker + Docker Compose | 24+ / v2 |
+| Python (backend dev) | 3.12+ |
+| Node.js (frontend dev) | 20+ |
 
 ---
 
@@ -91,6 +138,10 @@ The CI pipelines require this secret to be configured in the repository:
 .
 ├── CLAUDE.md                       # Project configuration + always-on standard imports (the one file you customize)
 ├── .mcp.json                       # Live MCP server config (committed, project scope)
+├── .env.example                    # Required environment variables (copy to .env before starting)
+├── docker-compose.yml              # Wires frontend, backend, and Postgres 16
+├── playwright.config.ts            # Playwright E2E config (baseURL: http://localhost:5173)
+├── package.json                    # Root — Playwright devDependency for E2E CI job
 ├── .claude/
 │   ├── settings.json               # Permissions, hooks, and autonomy posture
 │   ├── commands/                   # Slash-command shims (invoke the matching skill)
@@ -101,12 +152,23 @@ The CI pipelines require this secret to be configured in the repository:
 │   ├── project_state.json          # MCP status mapping + feature registry (generated)
 │   ├── feature_map.md              # Feature dependencies and execution waves (generated)
 │   └── artifacts/                  # Per-feature plans, reports, and scripts (generated)
-├── docs/
-│   └── DEVELOPMENT.md              # Full development workflow guide
-└── design-reference/               # Figma-to-code export (optional, if applicable)
+├── backend/                        # FastAPI app + tests
+│   ├── app/                        # Application source (api, services, repositories, models, schemas)
+│   ├── alembic/                    # Database migrations
+│   ├── tests/                      # pytest unit and integration tests
+│   ├── pyproject.toml              # Python dependencies and pytest config
+│   └── Dockerfile
+├── frontend/                       # Vite + React + TypeScript + Tailwind CSS
+│   ├── src/                        # App source (routes, components, api, lib, icons)
+│   ├── package.json                # npm dependencies and build/lint scripts
+│   └── Dockerfile                  # Multi-stage: Node build, then Nginx serve
+├── e2e/                            # Playwright E2E tests and UAT artifacts
+│   ├── tests/                      # Playwright spec files ({feature_id}_{slug}.spec.ts)
+│   ├── helpers/                    # Shared API seed helpers
+│   └── uat/                        # UAT Gherkin scenarios and manual scripts
+└── docs/
+    └── DEVELOPMENT.md              # Full development workflow guide
 ```
-
-> Additional directories (`backend/`, `frontend/`, `e2e/`, etc.) appear once features scaffold the project.
 
 ---
 
