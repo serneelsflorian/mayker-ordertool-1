@@ -23,6 +23,13 @@ class Order(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    # Guests are never returned by the order read; load them only on demand
+    # and let the database FK (ondelete=CASCADE) handle deletes so fetching an
+    # order does not pull in every guest.
     guests: Mapped[list["Guest"]] = relationship(  # noqa: F821
-        "Guest", back_populates="order", cascade="all, delete-orphan", lazy="selectin"
+        "Guest",
+        back_populates="order",
+        cascade="all, delete-orphan",
+        lazy="select",
+        passive_deletes=True,
     )

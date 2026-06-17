@@ -89,6 +89,8 @@ async def db_session(db_schema):
     await session.close()
     # Truncate for isolation
     async with engine.begin() as conn:
+        # Maintenance note: extend this list when new tables are added in
+        # future stories so per-test isolation keeps holding.
         await conn.execute(
             text(
                 "TRUNCATE TABLE guest_selections, guests, menu_items, orders "
