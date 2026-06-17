@@ -1,0 +1,67 @@
+name: Notify Slack on PR
+
+# Posts a Slack message when a Claude Code session finishes its work, which it
+# always signals through a PR:
+#   - /plan-feature  -> opens a DRAFT PR        (event: opened, draft=true)
+#   - /build-feature -> converts to ready       (event: ready_for_review)
+#
+# Runs in GitHub CI (outside the cloud-session sandbox), so it is not affected
+# by the session's network allowlist or secret-injection limits.
+#
+# Toggle:
+#   This workflow is OPT-IN. It only runs when the repository variable
+#   NOTIFY_SLACK is set to "true". Leave it unset (or set to anything else) and
+#   notifications are silently skipped, so devs who do not want them pay nothing.
+#
+# Setup (one-time, only if you want notifications):
+#   1. Create a Slack Incoming Webhook for the target channel:
+#      Slack -> Apps -> "Incoming Webhooks" -> Add to a channel -> copy the URL.
+#   2. Add it as a repo SECRET named SLACK_WEBHOOK_URL:
+#      GitHub -> repo Settings -> Secrets and variables -> Actions -> Secrets.
+#   3. Add a repo VARIABLE named NOTIFY_SLACK with value "true":
+#      GitHub -> repo Settings -> Secrets and variables -> Actions -> Variables.
+#   4. Commit/push this file from your LOCAL CLI (workflow files need a token
+#      with the `workflow` scope; the cloud session's token does not have it).
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, ready_for_review]
+
+jobs:
+  notify:
+    name: Post PR status to Slack
+    # Opt-in toggle: set repo variable NOTIFY_SLACK="true" to enable.
+    if: ${{ vars.NOTIFY_SLACK == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack message
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          IS_DRAFT: ${{ github.event.pull_request.draft }}
+          ACTION: ${{ github.event.action }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "::error::SLACK_WEBHOOK_URL secret is not set. Add it in Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+          if [ "$ACTION" = "ready_for_review" ]; then
+            STAGE="Build ready for review"
+          elif [ "$IS_DRAFT" = "true" ]; then
+            STAGE="Plan ready for review (draft PR)"
+          else
+            STAGE="PR opened"
+          fi
+
+          TEXT="${STAGE} in ${REPO}: *${PR_TITLE}*\nBranch: \`${PR_BRANCH}\`  -  by ${PR_AUTHOR}\n${PR_URL}"
+
+          payload="$(jq -n --arg text "$TEXT" '{text: $text}')"
+
+          curl -sS -X POST -H 'Content-type: application/json' \
+            --data "$payload" "$SLACK_WEBHOOK_URL"

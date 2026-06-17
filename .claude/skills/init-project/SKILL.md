@@ -186,7 +186,17 @@ The pipeline must:
 
 > Branch-prefix note: this framework uses the `feature/` prefix (set in `feature_map.md`). If you dispatch via a surface that defaults to a different prefix (for example Routines' `claude/` branches), either keep `feature/` explicitly or widen the regex so the auto-Done step still extracts the feature ID.
 
-### 6.3 Required Secrets
+### 6.3 PR Notification Pipeline (optional)
+
+Generate an **opt-in** pipeline that notifies the team when a dispatched session finishes its work. A finished session has no reliable in-session "done" signal (Stop / SessionEnd hooks are killed before completion on cloud surfaces), but every run ends by opening or updating a PR. A CI job keyed off PR events is therefore the robust signal, and because it runs in CI it is unaffected by the cloud sandbox's network allowlist and secret limits.
+
+- **GitHub** → `.github/workflows/notify-slack.yml`, triggered on `pull_request: [opened, ready_for_review]`.
+- **Toggle (off by default):** gate the whole job behind a repository variable so devs opt in. Job-level `if: ${{ vars.NOTIFY_SLACK == 'true' }}`. With the variable unset, the job is skipped and nobody is notified.
+- Post via a Slack Incoming Webhook stored in the `SLACK_WEBHOOK_URL` secret (a `curl` + `jq` POST is enough; no third-party action required).
+- Label the message by stage so a finished plan reads differently from a finished build: `ready_for_review` means build is ready; `opened` with `draft=true` means a plan draft is ready.
+- Other providers: the same pattern works in `.gitlab-ci.yml` / `bitbucket-pipelines.yml` on their merge-request events, gated on an equivalent CI/CD variable.
+
+### 6.4 Required Secrets
 
 After generating the pipeline, tell the user exactly what secrets to add and where:
 
@@ -197,6 +207,10 @@ Add these secrets in: GitHub → Repository → Settings → Secrets and variabl
 Required secrets:
   - LINEAR_API_KEY: Get from Linear → Settings → API → Personal API keys
     (or CLICKUP_API_KEY / JIRA_API_TOKEN depending on provider)
+
+Optional (only if you enabled the PR notification pipeline, section 6.3):
+  - SLACK_WEBHOOK_URL (secret): Slack → Apps → Incoming Webhooks → channel webhook URL
+  - NOTIFY_SLACK (variable, value "true"): same screen, the Variables tab (not Secrets)
 ```
 
 **For GitLab:**

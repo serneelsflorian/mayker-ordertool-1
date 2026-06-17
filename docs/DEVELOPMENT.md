@@ -124,6 +124,17 @@ This project uses **ClickUp** as the issue tracker and **GitHub** as the Git pro
 
 The PR test pipeline (`.github/workflows/pr-tests.yml`) needs **no secrets** — it spins up an ephemeral Postgres 16 service for backend tests and a Docker Compose stack for E2E entirely within the runner.
 
+#### Optional: Slack notifications when a session finishes
+
+`.github/workflows/notify-slack.yml` posts to Slack when a session's PR is opened (plan ready) or marked ready for review (build ready). It is **opt-in** and off by default. To turn it on:
+
+| Name | Type | Value | Where |
+| --- | --- | --- | --- |
+| `NOTIFY_SLACK` | Variable | `true` | Settings → Secrets and variables → Actions → **Variables** |
+| `SLACK_WEBHOOK_URL` | Secret | your Slack Incoming Webhook URL | Settings → Secrets and variables → Actions → **Secrets** |
+
+With `NOTIFY_SLACK` unset the job is skipped entirely. Get the webhook from Slack → Apps → Incoming Webhooks → add to the target channel. Because the job runs in CI (not in a cloud session), it is unaffected by the session sandbox's network allowlist and secret limits, which is why this is more reliable than an in-session Stop hook.
+
 ### 4. Development Environment
 
 #### Minimum versions
@@ -458,7 +469,7 @@ Triggers when PR is merged to main:
 - Calls the tracker's REST API to transition the feature to Done (using the repository secret)
 - Runs UAT Gherkin scenarios (if enabled)
 
-> The auto-Done pipeline runs in CI, not in Claude Code, so it uses the tracker REST API (not MCP). If you dispatch via a surface that uses a non-`feature/` branch prefix, align the branch regex accordingly.
+> The auto-Done pipeline runs in CI, not in Claude Code, so it uses the tracker REST API (not MCP). It matches the `feature/{FEATURE_ID}-{slug}` branch name. The `/plan-feature` and `/build-feature` skills now enforce this branch name even when the dispatch surface starts the session on an auto-generated branch (Claude Code on the web and Routines begin on a `claude/<slug>` branch): the skill switches to the `feature/...` branch before committing or pushing. If you intentionally dispatch with a different prefix, align the branch regex in `auto-done.yml` accordingly.
 
 ### Required Secrets
 

@@ -75,10 +75,18 @@ Update the feature's status in the tracker to the `planning` mapped status.
 
 ## 5. Create Branch
 
-1. Ensure the repo is on `main` (or `master`). Pull latest.
-2. Read the branch name from `feature_map.md`.
-3. If the branch already exists (re-planning), check it out and pull.
-4. If the branch does not exist, create it from main: `git checkout -b {branch}`.
+The framework branch name lives in `feature_map.md` (column `branch`) and **must** follow `feature/{FEATURE_ID}-{slug}`. The `feature/{FEATURE_ID}` prefix is a hard requirement: the auto-Done pipeline matches it on merge to transition the tracker task, and the framework parses the feature ID from it. Do **not** rely on the branch a dispatch surface picks for you.
+
+> **Claude Code on the web / Routines caveat.** These surfaces start the session on an auto-generated branch such as `claude/<random-slug>`. That name has no feature ID, so the auto-Done transition will never fire from it. **Never plan, commit, or push on the auto-generated branch** -- always move to `{branch}` first.
+
+1. Read `{branch}` for this feature from `feature_map.md`.
+2. Record the current branch: `git rev-parse --abbrev-ref HEAD`.
+3. Fetch the latest base branch: `git fetch origin main` (use `master` if that is the default).
+4. Get onto `{branch}`, choosing the case that applies:
+   - **Re-plan -- `{branch}` exists on the remote:** `git fetch origin {branch}` then `git checkout {branch}` then `git pull --ff-only origin {branch}`.
+   - **Fresh plan -- currently on `main` or a clean auto-generated `claude/*` branch with no commits of yours yet:** `git checkout -B {branch} origin/main`.
+   - **Fresh plan -- you already committed plan artifacts on an auto-generated `claude/*` branch:** preserve them by renaming the branch in place: `git branch -m {branch}`.
+5. Confirm you are on `{branch}` before doing any further work. The auto-generated `claude/*` branch (if any) is left unused: do not push it and do not open a PR from it.
 
 ---
 

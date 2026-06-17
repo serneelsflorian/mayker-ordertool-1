@@ -57,9 +57,14 @@ description: Implement one feature from an approved plan. Use when running /buil
 
 ## 4. Branch Setup
 
-1. Checkout the feature branch (created during `/plan-feature`).
-2. Pull latest from main: `git fetch origin main` (do NOT auto-rebase — the user triggers rebasing manually when needed).
-3. Verify the branch is up to date with the plan.
+The feature branch was created during `/plan-feature` and follows `feature/{FEATURE_ID}-{slug}` (column `branch` in `feature_map.md`). The `feature/{FEATURE_ID}` prefix is required: the auto-Done pipeline matches it on merge. Some dispatch surfaces (Claude Code on the web, Routines) start the session on an auto-generated branch such as `claude/<random-slug>`; do **not** build, commit, or push on that branch. Always switch to `{branch}` first.
+
+1. Read `{branch}` from `feature_map.md`.
+2. Get onto `{branch}`:
+   - **Branch exists on the remote (normal case, plan PR was pushed):** `git fetch origin {branch}` then `git checkout {branch}` then `git pull --ff-only origin {branch}`.
+   - **Branch is missing remotely (plan never pushed, e.g. an earlier run failed):** recreate it from the latest base, `git fetch origin main` then `git checkout -B {branch} origin/main`, and note in the PR that the plan branch was rebuilt.
+3. Fetch latest main for reference: `git fetch origin main` (do NOT auto-rebase: the user triggers rebasing manually when needed).
+4. Confirm you are on `{branch}`, then verify the branch is up to date with the plan.
 
 ---
 
