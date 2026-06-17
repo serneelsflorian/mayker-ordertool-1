@@ -78,3 +78,28 @@ export async function addSelection(
   );
   return resp.json() as Promise<GuestData>;
 }
+
+export async function closeTestOrder(
+  request: APIRequestContext,
+  orderId: string,
+): Promise<OrderData> {
+  const resp = await request.post(`${API_BASE}/orders/${orderId}/close`);
+  return resp.json() as Promise<OrderData>;
+}
+
+export interface OrderOverviewData {
+  id: string;
+  restaurant_name: string;
+  state: string;
+  guests: GuestData[];
+  submitted_count: number;
+  guest_count: number;
+}
+
+export async function getOrderOverview(
+  request: APIRequestContext,
+  orderId: string,
+): Promise<OrderOverviewData> {
+  const resp = await request.get(`${API_BASE}/orders/${orderId}/overview`);
+  return resp.json() as Promise<OrderOverviewData>;
+}
