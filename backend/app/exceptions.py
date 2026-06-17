@@ -50,3 +50,19 @@ class OrderClosedError(AppException):
 class ValidationError(AppException):
     def __init__(self, message: str) -> None:
         super().__init__(message=message, code="VALIDATION_ERROR")
+
+
+class OrderNotClosedError(AppException):
+    def __init__(self) -> None:
+        super().__init__(
+            message="Order must be closed before an email can be sent",
+            code="ORDER_NOT_CLOSED",
+        )
+
+
+class EmailSendError(AppException):
+    def __init__(self, detail: str = "") -> None:
+        super().__init__(
+            message=f"Failed to send email{': ' + detail if detail else ''}",
+            code="EMAIL_SEND_FAILED",
+        )

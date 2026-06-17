@@ -63,6 +63,19 @@ export interface OrderExport {
   text: string;
 }
 
+export interface SendOrderEmailPayload {
+  to: string;
+  cc?: string | null;
+  bcc?: string | null;
+}
+
+export interface OrderEmailResult {
+  status: "sent";
+  to: string;
+  cc: string | null;
+  bcc: string | null;
+}
+
 export interface AddSelectionPayload {
   menu_item_id: string;
   note?: string | null;

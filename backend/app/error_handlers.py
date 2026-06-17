@@ -3,10 +3,12 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from app.exceptions import (
     AppException,
+    EmailSendError,
     GuestNotFoundError,
     GuestSelectionNotFoundError,
     MenuItemNotFoundError,
     OrderClosedError,
+    OrderNotClosedError,
     OrderNotFoundError,
     ValidationError,
 )
@@ -19,7 +21,9 @@ _STATUS_MAP: dict[type, int] = {
     GuestNotFoundError: 404,
     GuestSelectionNotFoundError: 404,
     OrderClosedError: 409,
+    OrderNotClosedError: 409,
     ValidationError: 422,
+    EmailSendError: 502,
 }
 
 

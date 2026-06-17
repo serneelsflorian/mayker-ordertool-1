@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.orders import router as orders_router
+from app.api.email import router as email_router
 from app.api.guests import router as guests_router
+from app.api.orders import router as orders_router
 from app.error_handlers import app_exception_handler
 from app.exceptions import AppException
 from app.logging_config import configure_logging
@@ -22,3 +23,4 @@ app.add_exception_handler(AppException, app_exception_handler)
 
 app.include_router(orders_router, prefix="/api")
 app.include_router(guests_router, prefix="/api")
+app.include_router(email_router, prefix="/api")

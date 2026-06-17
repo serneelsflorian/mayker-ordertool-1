@@ -125,3 +125,29 @@ export async function getOrderExport(
   const resp = await request.get(`${API_BASE}/orders/${orderId}/export`);
   return resp.json() as Promise<OrderExportData>;
 }
+
+export interface OrderEmailResultData {
+  status: string;
+  to: string;
+  cc: string | null;
+  bcc: string | null;
+}
+
+export async function sendOrderEmail(
+  request: APIRequestContext,
+  orderId: string,
+  payload: { to: string; cc?: string | null; bcc?: string | null },
+): Promise<OrderEmailResultData> {
+  const resp = await request.post(`${API_BASE}/orders/${orderId}/email`, {
+    data: payload,
+  });
+  return resp.json() as Promise<OrderEmailResultData>;
+}
+
+export async function getOrder(
+  request: APIRequestContext,
+  orderId: string,
+): Promise<OrderData> {
+  const resp = await request.get(`${API_BASE}/orders/${orderId}`);
+  return resp.json() as Promise<OrderData>;
+}
