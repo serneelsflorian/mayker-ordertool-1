@@ -5,6 +5,8 @@ import {
   getOrder,
   joinGuest,
   removeSelection,
+  reopenGuestOrder,
+  submitGuestOrder,
   updateSelection,
 } from "../api/orders";
 import type { Guest, Order } from "../api/types";
@@ -129,6 +131,16 @@ function GuestOrderPageInner({ orderId }: { orderId: string }) {
     [guest, orderId, runMutation],
   );
 
+  const handleSubmit = useCallback(() => {
+    if (!guest) return;
+    void runMutation(() => submitGuestOrder(orderId, guest.id));
+  }, [guest, orderId, runMutation]);
+
+  const handleReopen = useCallback(() => {
+    if (!guest) return;
+    void runMutation(() => reopenGuestOrder(orderId, guest.id));
+  }, [guest, orderId, runMutation]);
+
   if (loading) {
     return (
       <div
@@ -189,6 +201,8 @@ function GuestOrderPageInner({ orderId }: { orderId: string }) {
           onQuantityChange={handleQuantityChange}
           onNoteChange={handleNoteChange}
           onRemove={handleRemove}
+          onSubmit={handleSubmit}
+          onReopen={handleReopen}
           disabled={isMutating}
         />
       )}

@@ -1,6 +1,7 @@
 import Badge from "./ui/Badge";
 import EmptyState from "./ui/EmptyState";
 import GuestSelectionRow from "./GuestSelectionRow";
+import GuestSubmitBar from "./GuestSubmitBar";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { formatCurrency } from "../lib/format";
 import type { Guest } from "../api/types";
@@ -10,6 +11,8 @@ interface GuestOrderPanelProps {
   onQuantityChange: (selectionId: string, quantity: number) => void;
   onNoteChange: (selectionId: string, note: string) => void;
   onRemove: (selectionId: string) => void;
+  onSubmit: () => void;
+  onReopen: () => void;
   disabled?: boolean;
 }
 
@@ -18,12 +21,14 @@ const STATUS_LABELS: Record<Guest["status"], string> = {
   submitted: "Submitted",
 };
 
-/** "My order" panel: status, the guest's own selections, and a running subtotal. */
+/** "My order" panel: status, the guest's own selections, a running subtotal, and submit controls. */
 export default function GuestOrderPanel({
   guest,
   onQuantityChange,
   onNoteChange,
   onRemove,
+  onSubmit,
+  onReopen,
   disabled = false,
 }: GuestOrderPanelProps) {
   return (
@@ -69,6 +74,12 @@ export default function GuestOrderPanel({
             {formatCurrency(guest.subtotal)}
           </span>
         </div>
+        <GuestSubmitBar
+          guest={guest}
+          onSubmit={onSubmit}
+          onReopen={onReopen}
+          disabled={disabled}
+        />
       </CardContent>
     </Card>
   );
