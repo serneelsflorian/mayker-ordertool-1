@@ -59,5 +59,8 @@ class GuestRepository:
                 selectinload(Guest.selections).selectinload(GuestSelection.menu_item)
             )
             .order_by(Guest.created_at)
+            # Refresh already-identity-mapped instances so selections added
+            # earlier in the same session are reflected in the reload.
+            .execution_options(populate_existing=True)
         )
         return list(result.scalars().all())
