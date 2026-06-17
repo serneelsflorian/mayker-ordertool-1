@@ -49,6 +49,20 @@ export interface OrderOverview {
   guest_count: number;
 }
 
+export interface OrderExportLine {
+  quantity: number;
+  item_name: string;
+  note: string | null;
+}
+
+export interface OrderExport {
+  id: string;
+  restaurant_name: string;
+  lines: OrderExportLine[];
+  total: string;
+  text: string;
+}
+
 export interface AddSelectionPayload {
   menu_item_id: string;
   note?: string | null;
