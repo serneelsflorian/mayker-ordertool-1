@@ -40,23 +40,47 @@ docker compose down -v
 
 Copy `.env.example` to `.env` before starting. The file contains:
 
-| Variable            | Default                 | Purpose                                                                                                                 |
-| ------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `POSTGRES_USER`     | `ordertool`             | Postgres superuser name                                                                                                 |
-| `POSTGRES_PASSWORD` | `ordertool`             | Postgres superuser password                                                                                             |
-| `POSTGRES_DB`       | `ordertool`             | Database name                                                                                                           |
-| `DATABASE_URL`      | derived                 | Full async DSN used by the backend                                                                                      |
-| `BACKEND_PORT`      | `8000`                  | Host port for the FastAPI container                                                                                     |
-| `FRONTEND_PORT`     | `5173`                  | Host port for the Nginx/frontend container                                                                              |
-| `VITE_API_BASE_URL` | `/api`                  | Backend base path (proxied by Nginx in Docker)                                                                          |
-| `SMTP_HOST`         | _(empty)_               | SMTP server host for sending the order email. When empty, the backend logs the email instead of sending (demo default). |
-| `SMTP_PORT`         | `587`                   | SMTP server port                                                                                                        |
-| `SMTP_USERNAME`     | _(empty)_               | SMTP auth username (optional)                                                                                           |
-| `SMTP_PASSWORD`     | _(empty)_               | SMTP auth password (optional)                                                                                           |
-| `SMTP_USE_TLS`      | `true`                  | Whether to use TLS for the SMTP connection                                                                              |
-| `EMAIL_FROM`        | `orders@ordertool.demo` | From address on the order overview email                                                                                |
+| Variable            | Default                 | Purpose                                                                                                                   |
+| ------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `POSTGRES_USER`     | `ordertool`             | Postgres superuser name                                                                                                   |
+| `POSTGRES_PASSWORD` | `ordertool`             | Postgres superuser password                                                                                               |
+| `POSTGRES_DB`       | `ordertool`             | Database name                                                                                                             |
+| `DATABASE_URL`      | derived                 | Full async DSN used by the backend                                                                                        |
+| `BACKEND_PORT`      | `8000`                  | Host port for the FastAPI container                                                                                       |
+| `FRONTEND_PORT`     | `5173`                  | Host port for the Nginx/frontend container                                                                                |
+| `VITE_API_BASE_URL` | `/api`                  | Backend base path (proxied by Nginx in Docker)                                                                            |
+| `SMTP_HOST`         | _(empty)_               | SMTP server host for sending the order email. When empty, the backend logs the email instead of sending (demo default).   |
+| `SMTP_PORT`         | `587`                   | SMTP server port                                                                                                          |
+| `SMTP_USERNAME`     | _(empty)_               | SMTP auth username (optional)                                                                                             |
+| `SMTP_PASSWORD`     | _(empty)_               | SMTP auth password (optional)                                                                                             |
+| `SMTP_TLS_MODE`     | `starttls`              | How to secure the SMTP connection: `starttls` (port 587), `tls` (implicit TLS, port 465), or `none` (local test servers). |
+| `EMAIL_FROM`        | `orders@ordertool.demo` | From address on the order overview email                                                                                  |
 
 Do not commit `.env` — it is gitignored. Only `.env.example` is committed.
+
+#### Email / SMTP
+
+The "email the order overview" feature (Story 6) is a demo prank: the body
+contains the consolidated overview plus a deliberately light-hearted "the bill
+is coming" line. Sending happens server-side only.
+
+- **Default (no `SMTP_HOST`):** the backend uses a logging sender — it writes the
+  composed email to the backend logs and reports success, so the demo and tests
+  work without a mail server. No mail is actually delivered.
+- **Real delivery:** set `SMTP_HOST` (plus credentials and `EMAIL_FROM`) to a mail
+  server you are entitled to use, then restart the backend.
+
+Pick `SMTP_TLS_MODE` to match the port, or the connection will fail:
+
+| Port   | Convention                                          | `SMTP_TLS_MODE` |
+| ------ | --------------------------------------------------- | --------------- |
+| `587`  | submission + STARTTLS (Gmail, SendGrid, Mailgun, …) | `starttls`      |
+| `465`  | implicit TLS (SMTPS)                                | `tls`           |
+| `1025` | local test server (e.g. MailHog), no encryption     | `none`          |
+
+Only email recipients the admin is entitled to use (their own or a teammate's
+with consent) — this is a joke for a known audience, not a tool for arbitrary
+third parties.
 
 ---
 

@@ -40,7 +40,17 @@ class EmailSender(Protocol):
 
 
 class SmtpEmailSender:
-    """Sends email over SMTP using aiosmtplib."""
+    """Sends email over SMTP using aiosmtplib.
+
+    ``tls_mode`` selects how the connection is secured, because the right
+    mechanism depends on the port:
+      - "starttls": connect in plaintext then upgrade (submission port 587).
+      - "tls": implicit TLS from the first byte (SMTPS port 465).
+      - "none": no encryption (local test servers such as MailHog).
+    Passing the wrong one (e.g. implicit TLS to a 587 STARTTLS server) makes
+    the connection hang or fail, so it must be explicit rather than a single
+    boolean.
+    """
 
     def __init__(
         self,
@@ -48,15 +58,25 @@ class SmtpEmailSender:
         port: int,
         username: str,
         password: str,
-        use_tls: bool,
+        tls_mode: str,
         from_address: str,
     ) -> None:
         self._host = host
         self._port = port
         self._username = username
         self._password = password
-        self._use_tls = use_tls
+        self._tls_mode = tls_mode
         self._from_address = from_address
+
+    def _tls_kwargs(self) -> dict[str, bool]:
+        """Translate the TLS mode into aiosmtplib connection kwargs."""
+        if self._tls_mode == "tls":
+            return {"use_tls": True}
+        if self._tls_mode == "none":
+            # Disable both implicit TLS and the automatic STARTTLS upgrade.
+            return {"use_tls": False, "start_tls": False}
+        # Default: STARTTLS upgrade after a plaintext connect (port 587).
+        return {"start_tls": True}
 
     async def send(
         self,
@@ -91,8 +111,8 @@ class SmtpEmailSender:
             port=self._port,
             username=self._username or None,
             password=self._password or None,
-            use_tls=self._use_tls,
             recipients=recipients,
+            **self._tls_kwargs(),
         )
         logger.info(
             "Email sent via SMTP: to=%s cc=%s bcc=%s subject=%r",
@@ -134,7 +154,7 @@ def build_email_sender(settings: object) -> EmailSender:
             port=getattr(settings, "smtp_port", 587),
             username=getattr(settings, "smtp_username", ""),
             password=getattr(settings, "smtp_password", ""),
-            use_tls=getattr(settings, "smtp_use_tls", True),
+            tls_mode=getattr(settings, "smtp_tls_mode", "starttls"),
             from_address=getattr(settings, "email_from", "orders@ordertool.demo"),
         )
     logger.debug("SMTP host not configured; using LoggingEmailSender")

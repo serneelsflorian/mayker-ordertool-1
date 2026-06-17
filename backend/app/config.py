@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,7 +14,11 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_username: str = ""
     smtp_password: str = ""
-    smtp_use_tls: bool = True
+    # How to secure the SMTP connection:
+    #   "starttls" — connect plaintext then upgrade (submission port 587; default)
+    #   "tls"      — implicit TLS from connect (SMTPS port 465)
+    #   "none"     — no encryption (local test servers such as MailHog on 1025)
+    smtp_tls_mode: Literal["starttls", "tls", "none"] = "starttls"
     email_from: str = "orders@ordertool.demo"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
