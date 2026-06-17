@@ -418,3 +418,54 @@ class TestGetOrderOverview:
 
         with pytest.raises(OrderNotFoundError):
             await service.get_order_overview(uuid.uuid4())
+
+
+# ---------- get_order_export ----------
+
+
+class TestGetOrderExport:
+    async def test_export_builds_consolidated_lines_from_guests(
+        self, service, mock_order_repo, mock_guest_repo
+    ):
+        order = _make_order()
+        mock_order_repo.get_by_id.return_value = order
+        # Both guests pick the SAME menu item (shared id) with no note, so the
+        # consolidated export merges them into a single line.
+        sara_sel = _make_selection(quantity=2, price=Decimal("9.50"))
+        tom_sel = _make_selection(quantity=1, price=Decimal("9.50"))
+        tom_sel.menu_item = sara_sel.menu_item
+        tom_sel.menu_item_id = sara_sel.menu_item_id
+        guests = [
+            _make_guest(name="Sara", status="submitted", selections=[sara_sel]),
+            _make_guest(name="Tom", status="editing", selections=[tom_sel]),
+        ]
+        mock_guest_repo.list_by_order.return_value = guests
+
+        result = await service.get_order_export(order.id)
+
+        assert result.id == order.id
+        assert result.restaurant_name == order.restaurant_name
+        # Same item + no note across both guests merges into one 3x line.
+        assert len(result.lines) == 1
+        assert result.lines[0].quantity == 3
+        assert result.total == "28.50"
+
+    async def test_export_empty_order_returns_zero_total(
+        self, service, mock_order_repo, mock_guest_repo
+    ):
+        order = _make_order()
+        mock_order_repo.get_by_id.return_value = order
+        mock_guest_repo.list_by_order.return_value = []
+
+        result = await service.get_order_export(order.id)
+
+        assert result.lines == []
+        assert result.total == "0.00"
+
+    async def test_export_missing_order_raises_not_found(
+        self, service, mock_order_repo
+    ):
+        mock_order_repo.get_by_id.return_value = None
+
+        with pytest.raises(OrderNotFoundError):
+            await service.get_order_export(uuid.uuid4())

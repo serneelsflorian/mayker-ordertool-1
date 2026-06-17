@@ -225,3 +225,97 @@ class TestOrderOverview:
         resp = await client.get(f"/api/orders/{uuid.uuid4()}/overview")
         assert resp.status_code == 404
         assert resp.json()["error"]["code"] == "ORDER_NOT_FOUND"
+
+
+class TestOrderExport:
+    async def test_export_merges_by_item_and_note_with_total(self, client):
+        order_id = (await client.post("/api/orders")).json()["id"]
+        margherita = (
+            await client.post(
+                f"/api/orders/{order_id}/menu-items",
+                json={"name": "Margherita", "price": "9.50"},
+            )
+        ).json()["id"]
+
+        # Two guests order the same item; one adds a note. Same item + same
+        # (no) note merges; the noted line stays separate.
+        sara = (
+            await client.post(f"/api/orders/{order_id}/guests", json={"name": "Sara"})
+        ).json()["id"]
+        await client.post(
+            f"/api/orders/{order_id}/guests/{sara}/selections",
+            json={"menu_item_id": margherita, "quantity": 2},
+        )
+        tom = (
+            await client.post(f"/api/orders/{order_id}/guests", json={"name": "Tom"})
+        ).json()["id"]
+        await client.post(
+            f"/api/orders/{order_id}/guests/{tom}/selections",
+            json={"menu_item_id": margherita, "quantity": 1, "note": "no onions"},
+        )
+
+        await client.post(f"/api/orders/{order_id}/close")
+
+        resp = await client.get(f"/api/orders/{order_id}/export")
+        assert resp.status_code == 200
+        body = resp.json()
+
+        assert body["restaurant_name"] == "Trattoria Demo"
+        assert body["total"] == "28.50"
+        lines = body["lines"]
+        assert len(lines) == 2
+        plain = next(line for line in lines if line["note"] is None)
+        noted = next(line for line in lines if line["note"] == "no onions")
+        assert plain["quantity"] == 2
+        assert noted["quantity"] == 1
+        # Canonical text: restaurant header, grouped lines, note beneath, total.
+        assert body["text"].splitlines()[0] == "Trattoria Demo"
+        assert "2x Margherita" in body["text"]
+        assert "   - no onions" in body["text"]
+        assert "Total: €28.50" in body["text"]
+
+    async def test_export_item_with_no_price_counts_as_zero(self, client):
+        order_id = (await client.post("/api/orders")).json()["id"]
+        priced = (
+            await client.post(
+                f"/api/orders/{order_id}/menu-items",
+                json={"name": "Margherita", "price": "9.50"},
+            )
+        ).json()["id"]
+        free = (
+            await client.post(
+                f"/api/orders/{order_id}/menu-items",
+                json={"name": "Garlic Bread"},
+            )
+        ).json()["id"]
+
+        guest = (
+            await client.post(f"/api/orders/{order_id}/guests", json={"name": "Mira"})
+        ).json()["id"]
+        await client.post(
+            f"/api/orders/{order_id}/guests/{guest}/selections",
+            json={"menu_item_id": priced, "quantity": 1},
+        )
+        await client.post(
+            f"/api/orders/{order_id}/guests/{guest}/selections",
+            json={"menu_item_id": free, "quantity": 3},
+        )
+
+        resp = await client.get(f"/api/orders/{order_id}/export")
+        body = resp.json()
+        assert body["total"] == "9.50"
+        assert "3x Garlic Bread" in body["text"]
+
+    async def test_export_empty_order_returns_header_and_zero_total(self, client):
+        order_id = (await client.post("/api/orders")).json()["id"]
+        resp = await client.get(f"/api/orders/{order_id}/export")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["lines"] == []
+        assert body["total"] == "0.00"
+        assert body["text"] == "Trattoria Demo\n\nTotal: €0.00"
+
+    async def test_export_missing_order_returns_404(self, client):
+        resp = await client.get(f"/api/orders/{uuid.uuid4()}/export")
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "ORDER_NOT_FOUND"
