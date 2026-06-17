@@ -79,3 +79,25 @@ async def remove_selection(
         "DELETE /orders/%s/guests/%s/selections/%s", order_id, guest_id, selection_id
     )
     return guest
+
+
+@router.post("/{order_id}/guests/{guest_id}/submit", response_model=GuestRead)
+async def submit_guest(
+    order_id: uuid.UUID,
+    guest_id: uuid.UUID,
+    service: Annotated[GuestService, Depends(get_guest_service)],
+) -> GuestRead:
+    guest = await service.submit_guest(order_id, guest_id)
+    logger.info("POST /orders/%s/guests/%s/submit", order_id, guest_id)
+    return guest
+
+
+@router.post("/{order_id}/guests/{guest_id}/reopen", response_model=GuestRead)
+async def reopen_guest(
+    order_id: uuid.UUID,
+    guest_id: uuid.UUID,
+    service: Annotated[GuestService, Depends(get_guest_service)],
+) -> GuestRead:
+    guest = await service.reopen_guest(order_id, guest_id)
+    logger.info("POST /orders/%s/guests/%s/reopen", order_id, guest_id)
+    return guest

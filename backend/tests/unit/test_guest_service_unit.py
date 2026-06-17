@@ -350,3 +350,146 @@ class TestGetGuest:
         service._guest_repo.get_by_id.return_value = guest
         with pytest.raises(GuestNotFoundError):
             await service.get_guest(uuid.uuid4(), guest.id)
+
+
+# ---------- submit_guest ----------
+
+
+class TestSubmitGuest:
+    async def test_submit_guest_happy_path_sets_status_submitted(self, service):
+        order = _make_order()
+        selection = _make_selection()
+        guest = _make_guest(order_id=order.id, selections=[selection])
+        submitted_guest = _make_guest(
+            id=guest.id, order_id=order.id, status="submitted", selections=[selection]
+        )
+        service._order_repo.get_by_id.return_value = order
+        service._guest_repo.get_by_id.side_effect = [guest, submitted_guest]
+
+        result = await service.submit_guest(order.id, guest.id)
+
+        assert guest.status == "submitted"
+        assert result.status == "submitted"
+        assert isinstance(result, GuestRead)
+
+    async def test_submit_guest_with_no_selections_raises_validation_error(
+        self, service
+    ):
+        order = _make_order()
+        guest = _make_guest(order_id=order.id, selections=[])
+        service._order_repo.get_by_id.return_value = order
+        service._guest_repo.get_by_id.return_value = guest
+
+        with pytest.raises(ValidationError, match="at least one item"):
+            await service.submit_guest(order.id, guest.id)
+
+    async def test_submit_guest_on_closed_order_raises_order_closed_error(
+        self, service
+    ):
+        order = _make_order(state="closed")
+        service._order_repo.get_by_id.return_value = order
+
+        with pytest.raises(OrderClosedError):
+            await service.submit_guest(order.id, uuid.uuid4())
+
+    async def test_submit_guest_unknown_guest_raises_guest_not_found_error(
+        self, service
+    ):
+        order = _make_order()
+        service._order_repo.get_by_id.return_value = order
+        service._guest_repo.get_by_id.return_value = None
+
+        with pytest.raises(GuestNotFoundError):
+            await service.submit_guest(order.id, uuid.uuid4())
+
+
+# ---------- reopen_guest ----------
+
+
+class TestReopenGuest:
+    async def test_reopen_guest_happy_path_sets_status_editing(self, service):
+        order = _make_order()
+        selection = _make_selection()
+        guest = _make_guest(
+            order_id=order.id, status="submitted", selections=[selection]
+        )
+        editing_guest = _make_guest(
+            id=guest.id, order_id=order.id, status="editing", selections=[selection]
+        )
+        service._order_repo.get_by_id.return_value = order
+        service._guest_repo.get_by_id.side_effect = [guest, editing_guest]
+
+        result = await service.reopen_guest(order.id, guest.id)
+
+        assert guest.status == "editing"
+        assert result.status == "editing"
+        assert isinstance(result, GuestRead)
+
+    async def test_reopen_guest_on_closed_order_raises_order_closed_error(
+        self, service
+    ):
+        order = _make_order(state="closed")
+        service._order_repo.get_by_id.return_value = order
+
+        with pytest.raises(OrderClosedError):
+            await service.reopen_guest(order.id, uuid.uuid4())
+
+
+# ---------- auto-revert on selection mutations ----------
+
+
+class TestAutoRevertOnSelectionMutation:
+    async def test_add_selection_on_submitted_guest_returns_status_editing(
+        self, service
+    ):
+        order = _make_order()
+        item = _make_item(order_id=order.id)
+        # Guest starts as submitted
+        guest = _make_guest(order_id=order.id, status="submitted", selections=[])
+        editing_guest = _make_guest(
+            id=guest.id, order_id=order.id, status="editing", selections=[]
+        )
+        service._order_repo.get_by_id.return_value = order
+        service._guest_repo.get_by_id.side_effect = [guest, editing_guest]
+        service._item_repo.get_by_id_and_order.return_value = item
+
+        result = await service.add_selection(
+            order.id, guest.id, GuestSelectionCreate(menu_item_id=item.id)
+        )
+
+        assert guest.status == "editing"
+        assert result.status == "editing"
+
+    async def test_update_selection_on_submitted_guest_returns_status_editing(
+        self, service
+    ):
+        order = _make_order()
+        guest = _make_guest(order_id=order.id, status="submitted")
+        selection = _make_selection(guest_id=guest.id, quantity=1)
+        editing_guest = _make_guest(id=guest.id, order_id=order.id, status="editing")
+        service._order_repo.get_by_id.return_value = order
+        service._guest_repo.get_by_id.side_effect = [guest, editing_guest]
+        service._selection_repo.get_by_id_and_guest.return_value = selection
+
+        result = await service.update_selection(
+            order.id, guest.id, selection.id, GuestSelectionUpdate(quantity=2)
+        )
+
+        assert guest.status == "editing"
+        assert result.status == "editing"
+
+    async def test_remove_selection_on_submitted_guest_returns_status_editing(
+        self, service
+    ):
+        order = _make_order()
+        guest = _make_guest(order_id=order.id, status="submitted")
+        selection = _make_selection(guest_id=guest.id)
+        editing_guest = _make_guest(id=guest.id, order_id=order.id, status="editing")
+        service._order_repo.get_by_id.return_value = order
+        service._guest_repo.get_by_id.side_effect = [guest, editing_guest]
+        service._selection_repo.get_by_id_and_guest.return_value = selection
+
+        result = await service.remove_selection(order.id, guest.id, selection.id)
+
+        assert guest.status == "editing"
+        assert result.status == "editing"

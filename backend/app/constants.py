@@ -1,1 +1,4 @@
 RESTAURANT_NAME = "Trattoria Demo"
+
+GUEST_STATUS_EDITING = "editing"
+GUEST_STATUS_SUBMITTED = "submitted"
