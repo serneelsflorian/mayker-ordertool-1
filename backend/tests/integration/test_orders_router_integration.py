@@ -2,6 +2,10 @@
 
 import uuid
 
+from sqlalchemy import update
+
+from app.models.guest import Guest
+
 
 class TestCreateOrder:
     async def test_post_orders_returns_201_with_order(self, client):
