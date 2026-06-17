@@ -27,7 +27,11 @@ _recording_sender = RecordingEmailSender()
 @pytest.fixture(autouse=True)
 def _override_email_sender(db_session):
     """Route the email endpoint through a recording sender bound to the test
-    session, so dispatch is captured without contacting a real mail server."""
+    session, so dispatch is captured without contacting a real mail server.
+
+    The sender's recorded calls are reset before every test so no mutable state
+    leaks between tests regardless of execution order."""
+    _recording_sender.calls.clear()
     app.dependency_overrides[get_email_service] = lambda: EmailService(
         db_session, _recording_sender
     )
@@ -37,7 +41,6 @@ def _override_email_sender(db_session):
 
 class TestEmailRouterHappyPath:
     async def test_post_email_closed_order_returns_200_with_status_sent(self, client):
-        _recording_sender.calls.clear()
         order_id = (await client.post("/api/orders")).json()["id"]
         await client.post(f"/api/orders/{order_id}/close")
 
@@ -52,7 +55,6 @@ class TestEmailRouterHappyPath:
         assert body["to"] == "alice@example.com"
 
     async def test_post_email_records_to_recipient(self, client):
-        _recording_sender.calls.clear()
         order_id = (await client.post("/api/orders")).json()["id"]
         await client.post(f"/api/orders/{order_id}/close")
 
@@ -65,7 +67,6 @@ class TestEmailRouterHappyPath:
         assert _recording_sender.calls[0]["to"] == "alice@example.com"
 
     async def test_post_email_with_cc_and_bcc_records_all_recipients(self, client):
-        _recording_sender.calls.clear()
         order_id = (await client.post("/api/orders")).json()["id"]
         await client.post(f"/api/orders/{order_id}/close")
 
@@ -87,7 +88,6 @@ class TestEmailRouterHappyPath:
         assert call["bcc"] == "audit@example.com"
 
     async def test_post_email_cc_bcc_absent_when_not_provided(self, client):
-        _recording_sender.calls.clear()
         order_id = (await client.post("/api/orders")).json()["id"]
         await client.post(f"/api/orders/{order_id}/close")
 
@@ -101,7 +101,6 @@ class TestEmailRouterHappyPath:
         assert body["bcc"] is None
 
     async def test_post_email_blank_cc_coerced_to_null(self, client):
-        _recording_sender.calls.clear()
         order_id = (await client.post("/api/orders")).json()["id"]
         await client.post(f"/api/orders/{order_id}/close")
 
@@ -116,7 +115,6 @@ class TestEmailRouterHappyPath:
         assert body["bcc"] is None
 
     async def test_post_email_order_state_unchanged_after_send(self, client):
-        _recording_sender.calls.clear()
         order_id = (await client.post("/api/orders")).json()["id"]
         await client.post(f"/api/orders/{order_id}/close")
 
