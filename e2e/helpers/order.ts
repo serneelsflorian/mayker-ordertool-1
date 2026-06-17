@@ -103,3 +103,25 @@ export async function getOrderOverview(
   const resp = await request.get(`${API_BASE}/orders/${orderId}/overview`);
   return resp.json() as Promise<OrderOverviewData>;
 }
+
+export interface OrderExportLineData {
+  quantity: number;
+  item_name: string;
+  note: string | null;
+}
+
+export interface OrderExportData {
+  id: string;
+  restaurant_name: string;
+  lines: OrderExportLineData[];
+  total: string;
+  text: string;
+}
+
+export async function getOrderExport(
+  request: APIRequestContext,
+  orderId: string,
+): Promise<OrderExportData> {
+  const resp = await request.get(`${API_BASE}/orders/${orderId}/export`);
+  return resp.json() as Promise<OrderExportData>;
+}

@@ -9,8 +9,10 @@ from app.models.order import Order
 from app.repositories.guest_repository import GuestRepository
 from app.repositories.menu_item_repository import MenuItemRepository
 from app.repositories.order_repository import OrderRepository
+from app.schemas.export import OrderExportRead
 from app.schemas.menu_item import MenuItemCreate, MenuItemRead
 from app.schemas.order import OrderOverviewRead, OrderRead
+from app.services.export_builder import build_export
 from app.services.guest_mapping import map_guest_to_read
 
 logger = logging.getLogger(__name__)
@@ -159,3 +161,13 @@ class OrderService:
             submitted_count=submitted_count,
             guest_count=len(guests),
         )
+
+    async def get_order_export(self, order_id: uuid.UUID) -> OrderExportRead:
+        order = await self._order_repo.get_by_id(order_id)
+        if order is None:
+            raise OrderNotFoundError(str(order_id))
+
+        # All guests (editing + submitted) are included; the merge/total/text
+        # construction is delegated to the pure export_builder module.
+        guests = await self._guest_repo.list_by_order(order_id)
+        return build_export(order.id, order.restaurant_name, guests)

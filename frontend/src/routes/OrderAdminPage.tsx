@@ -15,6 +15,7 @@ import type {
 } from "../api/types";
 import MenuSetupCard from "../components/MenuSetupCard";
 import OrderCloseCard from "../components/OrderCloseCard";
+import OrderExportCard from "../components/OrderExportCard";
 import OrderOverviewCard from "../components/OrderOverviewCard";
 import ShareLinkCard from "../components/ShareLinkCard";
 
@@ -199,6 +200,7 @@ function OrderAdminPageInner({ orderId }: { orderId: string }) {
         onClose={handleCloseOrder}
         isClosing={isClosing}
       />
+      {order.state === "closed" && <OrderExportCard orderId={orderId} />}
     </div>
   );
 }

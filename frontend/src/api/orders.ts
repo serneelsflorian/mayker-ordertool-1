@@ -11,6 +11,7 @@ import type {
   Guest,
   MenuItem,
   Order,
+  OrderExport,
   OrderOverview,
   UpdateSelectionPayload,
 } from "./types";
@@ -29,6 +30,10 @@ export function closeOrder(id: string): Promise<Order> {
 
 export function getOrderOverview(id: string): Promise<OrderOverview> {
   return apiGet<OrderOverview>(`/orders/${id}/overview`);
+}
+
+export function getOrderExport(id: string): Promise<OrderExport> {
+  return apiGet<OrderExport>(`/orders/${id}/export`);
 }
 
 export function addMenuItem(

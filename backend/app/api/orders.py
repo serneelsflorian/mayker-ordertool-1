@@ -3,6 +3,7 @@ import logging
 from typing import Annotated
 from fastapi import APIRouter, Depends, Response
 from app.api.deps import get_order_service
+from app.schemas.export import OrderExportRead
 from app.schemas.menu_item import MenuItemCreate, MenuItemRead
 from app.schemas.order import OrderOverviewRead, OrderRead
 from app.services.order_service import OrderService
@@ -45,6 +46,14 @@ async def get_order_overview(
     service: Annotated[OrderService, Depends(get_order_service)],
 ) -> OrderOverviewRead:
     return await service.get_order_overview(order_id)
+
+
+@router.get("/{order_id}/export", response_model=OrderExportRead)
+async def get_order_export(
+    order_id: uuid.UUID,
+    service: Annotated[OrderService, Depends(get_order_service)],
+) -> OrderExportRead:
+    return await service.get_order_export(order_id)
 
 
 @router.post("/{order_id}/menu-items", status_code=201, response_model=MenuItemRead)
