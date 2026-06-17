@@ -23,6 +23,30 @@ class MenuItemNotFoundError(AppException):
         )
 
 
+class GuestNotFoundError(AppException):
+    def __init__(self, guest_id: str) -> None:
+        super().__init__(
+            message=f"Guest '{guest_id}' not found",
+            code="GUEST_NOT_FOUND",
+        )
+
+
+class GuestSelectionNotFoundError(AppException):
+    def __init__(self, selection_id: str) -> None:
+        super().__init__(
+            message=f"Guest selection '{selection_id}' not found",
+            code="GUEST_SELECTION_NOT_FOUND",
+        )
+
+
+class OrderClosedError(AppException):
+    def __init__(self) -> None:
+        super().__init__(
+            message="Order is closed and can no longer be modified",
+            code="ORDER_CLOSED",
+        )
+
+
 class ValidationError(AppException):
     def __init__(self, message: str) -> None:
         super().__init__(message=message, code="VALIDATION_ERROR")

@@ -18,5 +18,18 @@ class Order(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     menu_items: Mapped[list["MenuItem"]] = relationship(  # noqa: F821
-        "MenuItem", back_populates="order", cascade="all, delete-orphan", lazy="selectin"
+        "MenuItem",
+        back_populates="order",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    # Guests are never returned by the order read; load them only on demand
+    # and let the database FK (ondelete=CASCADE) handle deletes so fetching an
+    # order does not pull in every guest.
+    guests: Mapped[list["Guest"]] = relationship(  # noqa: F821
+        "Guest",
+        back_populates="order",
+        cascade="all, delete-orphan",
+        lazy="select",
+        passive_deletes=True,
     )

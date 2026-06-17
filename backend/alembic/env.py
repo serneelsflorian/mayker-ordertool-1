@@ -12,6 +12,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from app.models.base import Base  # noqa: E402
 import app.models.order  # noqa: F401, E402
 import app.models.menu_item  # noqa: F401, E402
+import app.models.guest  # noqa: F401, E402
+import app.models.guest_selection  # noqa: F401, E402
 
 config = context.config
 

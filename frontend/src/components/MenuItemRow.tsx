@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import Badge from "./ui/Badge";
 import Button from "./ui/Button";
 import { formatCurrency } from "../lib/format";
@@ -7,9 +7,16 @@ import type { MenuItem } from "../api/types";
 interface MenuItemRowProps {
   item: MenuItem;
   onRemove?: (id: string) => Promise<void>;
+  onAdd?: (id: string) => void;
+  addDisabled?: boolean;
 }
 
-export default function MenuItemRow({ item, onRemove }: MenuItemRowProps) {
+export default function MenuItemRow({
+  item,
+  onRemove,
+  onAdd,
+  addDisabled = false,
+}: MenuItemRowProps) {
   return (
     <li
       data-testid={`menu-item-row-${item.id}`}
@@ -35,6 +42,18 @@ export default function MenuItemRow({ item, onRemove }: MenuItemRowProps) {
             aria-label={`Remove ${item.name}`}
           >
             <Trash2 className="size-4" style={{ color: "var(--coral)" }} />
+          </Button>
+        )}
+        {onAdd && (
+          <Button
+            size="sm"
+            data-testid={`menu-item-add-${item.id}`}
+            onClick={() => onAdd(item.id)}
+            disabled={addDisabled}
+            aria-label={`Add ${item.name}`}
+          >
+            <Plus className="size-4" />
+            Add
           </Button>
         )}
       </div>
