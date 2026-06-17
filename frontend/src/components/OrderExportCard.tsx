@@ -20,6 +20,7 @@ export default function OrderExportCard({ orderId }: OrderExportCardProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -44,9 +45,15 @@ export default function OrderExportCard({ orderId }: OrderExportCardProps) {
 
   const handleCopy = useCallback(async () => {
     if (!exportData) return;
-    await copyText(exportData.text);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 2000);
+    // Only confirm when the write actually succeeds; on failure (e.g. an
+    // insecure context) prompt the user to copy the visible text manually.
+    const ok = await copyText(exportData.text);
+    setCopied(ok);
+    setCopyFailed(!ok);
+    window.setTimeout(() => {
+      setCopied(false);
+      setCopyFailed(false);
+    }, 2000);
   }, [exportData]);
 
   return (
@@ -111,6 +118,17 @@ export default function OrderExportCard({ orderId }: OrderExportCardProps) {
                 aria-live="polite"
               >
                 Copied to clipboard.
+              </span>
+            )}
+            {copyFailed && (
+              <span
+                data-testid="export-copy-failed"
+                className="text-xs"
+                style={{ color: "var(--coral)" }}
+                role="status"
+                aria-live="polite"
+              >
+                Couldn’t copy automatically — select the text above to copy it.
               </span>
             )}
           </>

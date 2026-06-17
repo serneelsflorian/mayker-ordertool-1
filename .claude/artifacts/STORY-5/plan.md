@@ -96,10 +96,12 @@ No external API integration.
 - **Method:** `GET`
 - **URL:** `/api/orders/{order_id}/export`
 - **Request:** none (path param `order_id: uuid`)
-- **Response (`200 OrderExportRead`):**
+- **Response (`200 OrderExportRead`):** includes the order `id` for consistency with
+  `OrderRead`/`OrderOverviewRead` (both expose `id`) and for STORY-6 reuse.
 
 ```json
 {
+  "id": "<order uuid>",
   "restaurant_name": "Trattoria Demo",
   "lines": [
     { "quantity": 3, "item_name": "Margherita", "note": null },
