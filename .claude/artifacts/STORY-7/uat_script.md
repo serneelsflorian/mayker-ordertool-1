@@ -1,4 +1,4 @@
-# Manual UAT Script — STORY-7: Guest submits their order
+# Manual UAT Script: STORY-7 Guest submits their order
 
 ## Prerequisites
 

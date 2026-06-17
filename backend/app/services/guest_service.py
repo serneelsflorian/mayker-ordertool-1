@@ -49,7 +49,7 @@ class GuestService:
             raise GuestNotFoundError(str(guest_id))
         return guest
 
-    async def _revert_guest_to_editing(self, guest: Guest) -> None:
+    def _revert_guest_to_editing(self, guest: Guest) -> None:
         """Set the guest status back to editing (idempotent when already editing)."""
         guest.status = GUEST_STATUS_EDITING
 
@@ -135,7 +135,7 @@ class GuestService:
             quantity=quantity,
         )
         await self._selection_repo.insert(selection)
-        await self._revert_guest_to_editing(guest)
+        self._revert_guest_to_editing(guest)
         await self._session.commit()
         guest = await self._guest_repo.get_by_id(guest_id)
         logger.info(
@@ -174,7 +174,7 @@ class GuestService:
             note = data.note.strip()
             selection.note = note if note else None
 
-        await self._revert_guest_to_editing(guest)
+        self._revert_guest_to_editing(guest)
         await self._session.commit()
         guest = await self._guest_repo.get_by_id(guest_id)
         logger.info("Updated selection id=%s guest_id=%s", selection_id, guest_id)
@@ -196,7 +196,7 @@ class GuestService:
             raise GuestSelectionNotFoundError(str(selection_id))
 
         await self._selection_repo.delete(selection)
-        await self._revert_guest_to_editing(guest)
+        self._revert_guest_to_editing(guest)
         await self._session.commit()
         guest = await self._guest_repo.get_by_id(guest_id)
         logger.info("Removed selection id=%s guest_id=%s", selection_id, guest_id)

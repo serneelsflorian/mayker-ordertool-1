@@ -434,6 +434,16 @@ class TestReopenGuest:
         with pytest.raises(OrderClosedError):
             await service.reopen_guest(order.id, uuid.uuid4())
 
+    async def test_reopen_guest_unknown_guest_raises_guest_not_found_error(
+        self, service
+    ):
+        order = _make_order()
+        service._order_repo.get_by_id.return_value = order
+        service._guest_repo.get_by_id.return_value = None
+
+        with pytest.raises(GuestNotFoundError):
+            await service.reopen_guest(order.id, uuid.uuid4())
+
 
 # ---------- auto-revert on selection mutations ----------
 
