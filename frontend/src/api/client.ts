@@ -1,6 +1,6 @@
-import type { ApiError } from './types'
+import type { ApiError } from "./types";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 export class ApiRequestError extends Error {
   constructor(
@@ -8,43 +8,58 @@ export class ApiRequestError extends Error {
     public readonly code: string,
     message: string,
   ) {
-    super(message)
-    this.name = 'ApiRequestError'
+    super(message);
+    this.name = "ApiRequestError";
   }
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const url = `${BASE_URL}${path}`
-  let response: Response
+  const url = `${BASE_URL}${path}`;
+  let response: Response;
   try {
     response = await fetch(url, {
-      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      headers: { "Content-Type": "application/json", ...options?.headers },
       ...options,
-    })
+    });
   } catch {
-    throw new ApiRequestError(0, 'NETWORK_ERROR', 'Network request failed')
+    throw new ApiRequestError(0, "NETWORK_ERROR", "Network request failed");
   }
 
   if (!response.ok) {
-    let errorBody: ApiError | null = null
+    let errorBody: ApiError | null = null;
     try {
-      errorBody = await response.json()
+      errorBody = await response.json();
     } catch {
       // ignore parse errors
     }
-    const code = errorBody?.error?.code ?? 'UNKNOWN_ERROR'
-    const message = errorBody?.error?.message ?? `Request failed with status ${response.status}`
-    throw new ApiRequestError(response.status, code, message)
+    const code = errorBody?.error?.code ?? "UNKNOWN_ERROR";
+    const message =
+      errorBody?.error?.message ??
+      `Request failed with status ${response.status}`;
+    throw new ApiRequestError(response.status, code, message);
   }
 
   if (response.status === 204) {
-    return undefined as T
+    return undefined as T;
   }
 
-  return response.json() as Promise<T>
+  return response.json() as Promise<T>;
 }
 
-export const apiGet = <T>(path: string) => request<T>(path)
+export const apiGet = <T>(path: string) => request<T>(path);
 export const apiPost = <T>(path: string, body?: unknown) =>
-  request<T>(path, { method: 'POST', body: body !== undefined ? JSON.stringify(body) : undefined })
-export const apiDelete = (path: string) => request<void>(path, { method: 'DELETE' })
+  request<T>(path, {
+    method: "POST",
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+export const apiPatch = <T>(path: string, body?: unknown) =>
+  request<T>(path, {
+    method: "PATCH",
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+export const apiDelete = (path: string) =>
+  request<void>(path, { method: "DELETE" });
+// DELETE variant for endpoints that return a body (e.g. removing a guest
+// selection returns the updated guest with a recomputed subtotal).
+export const apiDeleteWithBody = <T>(path: string) =>
+  request<T>(path, { method: "DELETE" });

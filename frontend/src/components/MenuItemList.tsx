@@ -5,12 +5,16 @@ import type { MenuItem } from "../api/types";
 interface MenuItemListProps {
   items: MenuItem[];
   onRemove?: (id: string) => Promise<void>;
+  onAdd?: (id: string) => void;
+  addDisabled?: boolean;
   emptyText?: string;
 }
 
 export default function MenuItemList({
   items,
   onRemove,
+  onAdd,
+  addDisabled = false,
   emptyText = "No menu items yet. Add your first item above.",
 }: MenuItemListProps) {
   if (items.length === 0) {
@@ -20,7 +24,13 @@ export default function MenuItemList({
   return (
     <ul data-testid="menu-item-list" className="grid gap-2">
       {items.map((item) => (
-        <MenuItemRow key={item.id} item={item} onRemove={onRemove} />
+        <MenuItemRow
+          key={item.id}
+          item={item}
+          onRemove={onRemove}
+          onAdd={onAdd}
+          addDisabled={addDisabled}
+        />
       ))}
     </ul>
   );
