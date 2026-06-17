@@ -115,9 +115,10 @@ test.describe("STORY-6: Admin emails the order overview (demo prank)", () => {
     await expect(preview).toContainText("Trattoria Demo");
     await expect(preview).toContainText("2x Margherita");
     await expect(preview).toContainText("Total: €19.00");
-    // The unambiguous prank line.
+    // The unambiguous prank line (substring is exact-case; toContainText is
+    // case-sensitive, and the line reads "...ordering! The bill will be sent...").
     await expect(preview).toContainText(
-      "the bill will be sent to your email shortly",
+      "bill will be sent to your email shortly",
     );
   });
 
