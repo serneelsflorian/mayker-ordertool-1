@@ -18,5 +18,11 @@ class Order(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     menu_items: Mapped[list["MenuItem"]] = relationship(  # noqa: F821
-        "MenuItem", back_populates="order", cascade="all, delete-orphan", lazy="selectin"
+        "MenuItem",
+        back_populates="order",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    guests: Mapped[list["Guest"]] = relationship(  # noqa: F821
+        "Guest", back_populates="order", cascade="all, delete-orphan", lazy="selectin"
     )

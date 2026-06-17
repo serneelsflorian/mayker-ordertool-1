@@ -1,4 +1,3 @@
-import asyncio
 import os
 import pytest
 import pytest_asyncio
@@ -28,17 +27,19 @@ def database_url():
 
     try:
         from testcontainers.postgres import PostgresContainer
+
         with PostgresContainer("postgres:16") as pg:
             raw = pg.get_connection_url()
             asyncpg_url = (
-                raw
-                .replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+                raw.replace("postgresql+psycopg2://", "postgresql+asyncpg://")
                 .replace("postgresql://", "postgresql+asyncpg://")
                 .replace("psycopg2://", "asyncpg://")
             )
             yield asyncpg_url
     except Exception as exc:
-        pytest.skip(f"Postgres not available (no DATABASE_URL and testcontainers failed: {exc})")
+        pytest.skip(
+            f"Postgres not available (no DATABASE_URL and testcontainers failed: {exc})"
+        )
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -48,6 +49,7 @@ async def db_schema(database_url):
     try:
         import subprocess
         import sys
+
         result = subprocess.run(
             [sys.executable, "-m", "alembic", "upgrade", "head"],
             cwd=os.path.dirname(os.path.dirname(__file__)),
@@ -87,17 +89,25 @@ async def db_session(db_schema):
     await session.close()
     # Truncate for isolation
     async with engine.begin() as conn:
-        await conn.execute(text("TRUNCATE TABLE menu_items, orders RESTART IDENTITY CASCADE"))
+        await conn.execute(
+            text(
+                "TRUNCATE TABLE guest_selections, guests, menu_items, orders "
+                "RESTART IDENTITY CASCADE"
+            )
+        )
     await engine.dispose()
 
 
 @pytest_asyncio.fixture(loop_scope="function")
 async def client(db_session):
     """Async httpx client with session override."""
+
     async def override_get_session():
         yield db_session
 
     app.dependency_overrides[get_session] = override_get_session
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
         yield ac
     app.dependency_overrides.clear()

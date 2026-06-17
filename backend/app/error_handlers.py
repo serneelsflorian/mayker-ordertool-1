@@ -1,13 +1,24 @@
 import logging
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from app.exceptions import AppException, OrderNotFoundError, MenuItemNotFoundError, ValidationError
+from app.exceptions import (
+    AppException,
+    GuestNotFoundError,
+    GuestSelectionNotFoundError,
+    MenuItemNotFoundError,
+    OrderClosedError,
+    OrderNotFoundError,
+    ValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
 _STATUS_MAP: dict[type, int] = {
     OrderNotFoundError: 404,
     MenuItemNotFoundError: 404,
+    GuestNotFoundError: 404,
+    GuestSelectionNotFoundError: 404,
+    OrderClosedError: 409,
     ValidationError: 422,
 }
 
