@@ -82,3 +82,17 @@ export function removeSelection(
     `/orders/${orderId}/guests/${guestId}/selections/${selectionId}`,
   );
 }
+
+export function submitGuestOrder(
+  orderId: string,
+  guestId: string,
+): Promise<Guest> {
+  return apiPost<Guest>(`/orders/${orderId}/guests/${guestId}/submit`);
+}
+
+export function reopenGuestOrder(
+  orderId: string,
+  guestId: string,
+): Promise<Guest> {
+  return apiPost<Guest>(`/orders/${orderId}/guests/${guestId}/reopen`);
+}

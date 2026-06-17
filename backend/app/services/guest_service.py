@@ -1,6 +1,7 @@
 import uuid
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.constants import GUEST_STATUS_EDITING, GUEST_STATUS_SUBMITTED
 from app.exceptions import (
     GuestNotFoundError,
     GuestSelectionNotFoundError,
@@ -48,6 +49,10 @@ class GuestService:
             raise GuestNotFoundError(str(guest_id))
         return guest
 
+    def _revert_guest_to_editing(self, guest: Guest) -> None:
+        """Set the guest status back to editing (idempotent when already editing)."""
+        guest.status = GUEST_STATUS_EDITING
+
     async def join_guest(self, order_id: uuid.UUID, data: GuestCreate) -> GuestRead:
         await self._require_order(order_id)
 
@@ -73,6 +78,35 @@ class GuestService:
         guest = await self._require_guest(order_id, guest_id)
         return _map_guest_to_read(guest)
 
+    async def submit_guest(self, order_id: uuid.UUID, guest_id: uuid.UUID) -> GuestRead:
+        order = await self._require_order(order_id)
+        if order.state == "closed":
+            raise OrderClosedError()
+
+        guest = await self._require_guest(order_id, guest_id)
+
+        if not guest.selections:
+            raise ValidationError("Add at least one item before submitting")
+
+        guest.status = GUEST_STATUS_SUBMITTED
+        await self._session.commit()
+        guest = await self._guest_repo.get_by_id(guest_id)
+        logger.info("Guest submitted order_id=%s guest_id=%s", order_id, guest_id)
+        return _map_guest_to_read(guest)
+
+    async def reopen_guest(self, order_id: uuid.UUID, guest_id: uuid.UUID) -> GuestRead:
+        order = await self._require_order(order_id)
+        if order.state == "closed":
+            raise OrderClosedError()
+
+        guest = await self._require_guest(order_id, guest_id)
+
+        guest.status = GUEST_STATUS_EDITING
+        await self._session.commit()
+        guest = await self._guest_repo.get_by_id(guest_id)
+        logger.info("Guest reopened order_id=%s guest_id=%s", order_id, guest_id)
+        return _map_guest_to_read(guest)
+
     async def add_selection(
         self, order_id: uuid.UUID, guest_id: uuid.UUID, data: GuestSelectionCreate
     ) -> GuestRead:
@@ -80,7 +114,7 @@ class GuestService:
         if order.state == "closed":
             raise OrderClosedError()
 
-        await self._require_guest(order_id, guest_id)
+        guest = await self._require_guest(order_id, guest_id)
 
         item = await self._item_repo.get_by_id_and_order(data.menu_item_id, order_id)
         if item is None:
@@ -101,6 +135,7 @@ class GuestService:
             quantity=quantity,
         )
         await self._selection_repo.insert(selection)
+        self._revert_guest_to_editing(guest)
         await self._session.commit()
         guest = await self._guest_repo.get_by_id(guest_id)
         logger.info(
@@ -122,7 +157,7 @@ class GuestService:
         if order.state == "closed":
             raise OrderClosedError()
 
-        await self._require_guest(order_id, guest_id)
+        guest = await self._require_guest(order_id, guest_id)
 
         selection = await self._selection_repo.get_by_id_and_guest(
             selection_id, guest_id
@@ -139,6 +174,7 @@ class GuestService:
             note = data.note.strip()
             selection.note = note if note else None
 
+        self._revert_guest_to_editing(guest)
         await self._session.commit()
         guest = await self._guest_repo.get_by_id(guest_id)
         logger.info("Updated selection id=%s guest_id=%s", selection_id, guest_id)
@@ -151,7 +187,7 @@ class GuestService:
         if order.state == "closed":
             raise OrderClosedError()
 
-        await self._require_guest(order_id, guest_id)
+        guest = await self._require_guest(order_id, guest_id)
 
         selection = await self._selection_repo.get_by_id_and_guest(
             selection_id, guest_id
@@ -160,6 +196,7 @@ class GuestService:
             raise GuestSelectionNotFoundError(str(selection_id))
 
         await self._selection_repo.delete(selection)
+        self._revert_guest_to_editing(guest)
         await self._session.commit()
         guest = await self._guest_repo.get_by_id(guest_id)
         logger.info("Removed selection id=%s guest_id=%s", selection_id, guest_id)

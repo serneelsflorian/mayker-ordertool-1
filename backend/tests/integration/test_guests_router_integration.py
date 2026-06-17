@@ -234,3 +234,122 @@ class TestClosedOrder:
         )
         assert resp.status_code == 409
         assert resp.json()["error"]["code"] == "ORDER_CLOSED"
+
+
+class TestSubmitGuest:
+    async def test_submit_returns_200_with_status_submitted(self, client):
+        order_id, item = await _seed_order_with_item(client)
+        guest_id = (
+            await client.post(f"/api/orders/{order_id}/guests", json={"name": "Sara"})
+        ).json()["id"]
+        await client.post(
+            f"/api/orders/{order_id}/guests/{guest_id}/selections",
+            json={"menu_item_id": item["id"]},
+        )
+
+        resp = await client.post(f"/api/orders/{order_id}/guests/{guest_id}/submit")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "submitted"
+        assert body["id"] == guest_id
+
+    async def test_submit_with_no_items_returns_422(self, client):
+        order_id, _ = await _seed_order_with_item(client)
+        guest_id = (
+            await client.post(f"/api/orders/{order_id}/guests", json={"name": "Sara"})
+        ).json()["id"]
+
+        resp = await client.post(f"/api/orders/{order_id}/guests/{guest_id}/submit")
+        assert resp.status_code == 422
+        assert resp.json()["error"]["code"] == "VALIDATION_ERROR"
+
+    async def test_submit_on_closed_order_returns_409(self, client, db_session):
+        order_id, item = await _seed_order_with_item(client)
+        guest_id = (
+            await client.post(f"/api/orders/{order_id}/guests", json={"name": "Sara"})
+        ).json()["id"]
+        await client.post(
+            f"/api/orders/{order_id}/guests/{guest_id}/selections",
+            json={"menu_item_id": item["id"]},
+        )
+
+        await db_session.execute(
+            update(Order).where(Order.id == uuid.UUID(order_id)).values(state="closed")
+        )
+        await db_session.commit()
+
+        resp = await client.post(f"/api/orders/{order_id}/guests/{guest_id}/submit")
+        assert resp.status_code == 409
+        assert resp.json()["error"]["code"] == "ORDER_CLOSED"
+
+    async def test_submit_unknown_guest_returns_404(self, client):
+        order_id, _ = await _seed_order_with_item(client)
+
+        resp = await client.post(f"/api/orders/{order_id}/guests/{uuid.uuid4()}/submit")
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "GUEST_NOT_FOUND"
+
+
+class TestReopenGuest:
+    async def test_reopen_returns_200_with_status_editing(self, client):
+        order_id, item = await _seed_order_with_item(client)
+        guest_id = (
+            await client.post(f"/api/orders/{order_id}/guests", json={"name": "Sara"})
+        ).json()["id"]
+        await client.post(
+            f"/api/orders/{order_id}/guests/{guest_id}/selections",
+            json={"menu_item_id": item["id"]},
+        )
+        # Submit first
+        await client.post(f"/api/orders/{order_id}/guests/{guest_id}/submit")
+
+        resp = await client.post(f"/api/orders/{order_id}/guests/{guest_id}/reopen")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "editing"
+        assert body["id"] == guest_id
+
+    async def test_reopen_on_closed_order_returns_409(self, client, db_session):
+        order_id, item = await _seed_order_with_item(client)
+        guest_id = (
+            await client.post(f"/api/orders/{order_id}/guests", json={"name": "Sara"})
+        ).json()["id"]
+
+        await db_session.execute(
+            update(Order).where(Order.id == uuid.UUID(order_id)).values(state="closed")
+        )
+        await db_session.commit()
+
+        resp = await client.post(f"/api/orders/{order_id}/guests/{guest_id}/reopen")
+        assert resp.status_code == 409
+        assert resp.json()["error"]["code"] == "ORDER_CLOSED"
+
+
+class TestAutoRevertOnSelectionMutation:
+    async def test_selection_mutation_after_submit_returns_guest_with_status_editing(
+        self, client
+    ):
+        order_id, item = await _seed_order_with_item(client)
+        guest_id = (
+            await client.post(f"/api/orders/{order_id}/guests", json={"name": "Sara"})
+        ).json()["id"]
+        sel_id = (
+            await client.post(
+                f"/api/orders/{order_id}/guests/{guest_id}/selections",
+                json={"menu_item_id": item["id"]},
+            )
+        ).json()["selections"][0]["id"]
+
+        # Submit the guest
+        submit_body = (
+            await client.post(f"/api/orders/{order_id}/guests/{guest_id}/submit")
+        ).json()
+        assert submit_body["status"] == "submitted"
+
+        # Now update a selection: status must revert to editing
+        resp = await client.patch(
+            f"/api/orders/{order_id}/guests/{guest_id}/selections/{sel_id}",
+            json={"quantity": 2},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "editing"
