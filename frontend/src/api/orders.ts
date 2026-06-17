@@ -11,8 +11,10 @@ import type {
   Guest,
   MenuItem,
   Order,
+  OrderEmailResult,
   OrderExport,
   OrderOverview,
+  SendOrderEmailPayload,
   UpdateSelectionPayload,
 } from "./types";
 
@@ -34,6 +36,13 @@ export function getOrderOverview(id: string): Promise<OrderOverview> {
 
 export function getOrderExport(id: string): Promise<OrderExport> {
   return apiGet<OrderExport>(`/orders/${id}/export`);
+}
+
+export function sendOrderEmail(
+  id: string,
+  payload: SendOrderEmailPayload,
+): Promise<OrderEmailResult> {
+  return apiPost<OrderEmailResult>(`/orders/${id}/email`, payload);
 }
 
 export function addMenuItem(
