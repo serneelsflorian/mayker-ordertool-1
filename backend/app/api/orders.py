@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Response
 from app.api.deps import get_order_service
 from app.schemas.menu_item import MenuItemCreate, MenuItemRead
-from app.schemas.order import OrderRead
+from app.schemas.order import OrderOverviewRead, OrderRead
 from app.services.order_service import OrderService
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,24 @@ async def get_order(
     service: Annotated[OrderService, Depends(get_order_service)],
 ) -> OrderRead:
     return await service.get_order(order_id)
+
+
+@router.post("/{order_id}/close", response_model=OrderRead)
+async def close_order(
+    order_id: uuid.UUID,
+    service: Annotated[OrderService, Depends(get_order_service)],
+) -> OrderRead:
+    order_read = await service.close_order(order_id)
+    logger.info("POST /orders/%s/close -> state=%s", order_id, order_read.state)
+    return order_read
+
+
+@router.get("/{order_id}/overview", response_model=OrderOverviewRead)
+async def get_order_overview(
+    order_id: uuid.UUID,
+    service: Annotated[OrderService, Depends(get_order_service)],
+) -> OrderOverviewRead:
+    return await service.get_order_overview(order_id)
 
 
 @router.post("/{order_id}/menu-items", status_code=201, response_model=MenuItemRead)

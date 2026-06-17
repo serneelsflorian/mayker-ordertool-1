@@ -23,11 +23,11 @@ from app.schemas.guest import (
     GuestSelectionCreate,
     GuestSelectionUpdate,
 )
-from app.services.guest_service import (
-    GuestService,
-    _line_total,
-    _quantize,
-    _map_guest_to_read,
+from app.services.guest_service import GuestService
+from app.services.guest_mapping import (
+    line_total as _line_total,
+    quantize as _quantize,
+    map_guest_to_read as _map_guest_to_read,
 )
 
 

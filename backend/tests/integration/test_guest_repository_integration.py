@@ -56,6 +56,30 @@ class TestGuestRepository:
         found = await repo.get_by_order_and_name(order.id, "Nobody")
         assert found is None
 
+    async def test_list_by_order_returns_guests_with_eager_selections(self, db_session):
+        order, item = await _make_order_with_item(db_session)
+        guest_repo = GuestRepository(db_session)
+        sel_repo = GuestSelectionRepository(db_session)
+        alice = await guest_repo.insert(Guest(order_id=order.id, name="Alice"))
+        await guest_repo.insert(Guest(order_id=order.id, name="Bob"))
+        await db_session.commit()
+        await sel_repo.insert(
+            GuestSelection(guest_id=alice.id, menu_item_id=item.id, quantity=2)
+        )
+        await db_session.commit()
+
+        guests = await guest_repo.list_by_order(order.id)
+        assert [g.name for g in guests] == ["Alice", "Bob"]
+        # Selections are eager-loaded (no lazy access error after the query).
+        alice_loaded = next(g for g in guests if g.name == "Alice")
+        assert alice_loaded.selections[0].quantity == 2
+        assert alice_loaded.selections[0].menu_item.name == "Margherita"
+
+    async def test_list_by_order_empty_when_no_guests(self, db_session):
+        order, _ = await _make_order_with_item(db_session)
+        repo = GuestRepository(db_session)
+        assert await repo.list_by_order(order.id) == []
+
 
 class TestGuestSelectionRepository:
     async def test_insert_get_and_delete_selection(self, db_session):
