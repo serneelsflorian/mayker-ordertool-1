@@ -22,15 +22,16 @@ docker compose up --build
 
 Once the stack is healthy, open:
 
-| Service | URL |
-| --- | --- |
-| Frontend (Vite/Nginx) | http://localhost:5173 |
-| Backend (FastAPI docs) | http://localhost:8000/docs |
-| Postgres 16 | `localhost:5432` (only for direct DB access) |
+| Service                | URL                                          |
+| ---------------------- | -------------------------------------------- |
+| Frontend (Vite/Nginx)  | http://localhost:5173                        |
+| Backend (FastAPI docs) | http://localhost:8000/docs                   |
+| Postgres 16            | `localhost:5432` (only for direct DB access) |
 
 The first startup runs Alembic migrations automatically. Subsequent starts skip them if the schema is already up to date.
 
 To stop and remove volumes (clean slate):
+
 ```bash
 docker compose down -v
 ```
@@ -39,15 +40,21 @@ docker compose down -v
 
 Copy `.env.example` to `.env` before starting. The file contains:
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `POSTGRES_USER` | `ordertool` | Postgres superuser name |
-| `POSTGRES_PASSWORD` | `ordertool` | Postgres superuser password |
-| `POSTGRES_DB` | `ordertool` | Database name |
-| `DATABASE_URL` | derived | Full async DSN used by the backend |
-| `BACKEND_PORT` | `8000` | Host port for the FastAPI container |
-| `FRONTEND_PORT` | `5173` | Host port for the Nginx/frontend container |
-| `VITE_API_BASE_URL` | `/api` | Backend base path (proxied by Nginx in Docker) |
+| Variable            | Default                 | Purpose                                                                                                                 |
+| ------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `POSTGRES_USER`     | `ordertool`             | Postgres superuser name                                                                                                 |
+| `POSTGRES_PASSWORD` | `ordertool`             | Postgres superuser password                                                                                             |
+| `POSTGRES_DB`       | `ordertool`             | Database name                                                                                                           |
+| `DATABASE_URL`      | derived                 | Full async DSN used by the backend                                                                                      |
+| `BACKEND_PORT`      | `8000`                  | Host port for the FastAPI container                                                                                     |
+| `FRONTEND_PORT`     | `5173`                  | Host port for the Nginx/frontend container                                                                              |
+| `VITE_API_BASE_URL` | `/api`                  | Backend base path (proxied by Nginx in Docker)                                                                          |
+| `SMTP_HOST`         | _(empty)_               | SMTP server host for sending the order email. When empty, the backend logs the email instead of sending (demo default). |
+| `SMTP_PORT`         | `587`                   | SMTP server port                                                                                                        |
+| `SMTP_USERNAME`     | _(empty)_               | SMTP auth username (optional)                                                                                           |
+| `SMTP_PASSWORD`     | _(empty)_               | SMTP auth password (optional)                                                                                           |
+| `SMTP_USE_TLS`      | `true`                  | Whether to use TLS for the SMTP connection                                                                              |
+| `EMAIL_FROM`        | `orders@ordertool.demo` | From address on the order overview email                                                                                |
 
 Do not commit `.env` — it is gitignored. Only `.env.example` is committed.
 
@@ -87,7 +94,7 @@ Then run `/mcp` and approve ClickUp in the browser (you choose the workspace the
 
 #### Example: GitHub as the Git provider (official remote server, PAT)
 
-Authenticate GitHub with a **Personal Access Token in a header, not OAuth.** Claude Code's OAuth flow requires Dynamic Client Registration, which the GitHub MCP endpoint does not support — the interactive "Authenticate" path fails with *"Incompatible auth server: does not support dynamic client registration."*
+Authenticate GitHub with a **Personal Access Token in a header, not OAuth.** Claude Code's OAuth flow requires Dynamic Client Registration, which the GitHub MCP endpoint does not support — the interactive "Authenticate" path fails with _"Incompatible auth server: does not support dynamic client registration."_
 
 ```bash
 export GITHUB_PAT=ghp_your_real_token   # keep the real token in your shell / CI secrets, never in .mcp.json
@@ -114,8 +121,8 @@ Autonomous (cloud) runs must not stop to ask for approvals. The permission postu
 
 The CI pipelines require this secret to be configured in the repository:
 
-| Secret | Purpose | Where to get it | Where to add it |
-| --- | --- | --- | --- |
+| Secret            | Purpose                                                                                                  | Where to get it                                                  | Where to add it                                                                      |
+| ----------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | `CLICKUP_API_KEY` | Lets the auto-Done pipeline transition a feature's ClickUp task to **done** when its PR merges to `main` | ClickUp → Settings → Apps → API Token (personal token, `pk_...`) | GitHub → repo **Settings → Secrets and variables → Actions → New repository secret** |
 
 ### Development environment
@@ -124,11 +131,11 @@ The CI pipelines require this secret to be configured in the repository:
 
 **For local non-Docker development:**
 
-| Tool | Minimum version |
-| --- | --- |
-| Docker + Docker Compose | 24+ / v2 |
-| Python (backend dev) | 3.12+ |
-| Node.js (frontend dev) | 20+ |
+| Tool                    | Minimum version |
+| ----------------------- | --------------- |
+| Docker + Docker Compose | 24+ / v2        |
+| Python (backend dev)    | 3.12+           |
+| Node.js (frontend dev)  | 20+             |
 
 ---
 
