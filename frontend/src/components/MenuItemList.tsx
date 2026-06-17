@@ -1,15 +1,20 @@
-import EmptyState from './ui/EmptyState'
-import MenuItemRow from './MenuItemRow'
-import type { MenuItem } from '../api/types'
+import EmptyState from "./ui/EmptyState";
+import MenuItemRow from "./MenuItemRow";
+import type { MenuItem } from "../api/types";
 
 interface MenuItemListProps {
-  items: MenuItem[]
-  onRemove: (id: string) => Promise<void>
+  items: MenuItem[];
+  onRemove?: (id: string) => Promise<void>;
+  emptyText?: string;
 }
 
-export default function MenuItemList({ items, onRemove }: MenuItemListProps) {
+export default function MenuItemList({
+  items,
+  onRemove,
+  emptyText = "No menu items yet. Add your first item above.",
+}: MenuItemListProps) {
   if (items.length === 0) {
-    return <EmptyState text="No menu items yet. Add your first item above." />
+    return <EmptyState text={emptyText} />;
   }
 
   return (
@@ -18,5 +23,5 @@ export default function MenuItemList({ items, onRemove }: MenuItemListProps) {
         <MenuItemRow key={item.id} item={item} onRemove={onRemove} />
       ))}
     </ul>
-  )
+  );
 }
