@@ -49,3 +49,18 @@ class GuestRepository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def list_by_order(self, order_id: uuid.UUID) -> list[Guest]:
+        """All guests for an order, ordered by join time for a stable overview."""
+        result = await self._session.execute(
+            select(Guest)
+            .where(Guest.order_id == order_id)
+            .options(
+                selectinload(Guest.selections).selectinload(GuestSelection.menu_item)
+            )
+            .order_by(Guest.created_at)
+            # Refresh already-identity-mapped instances so selections added
+            # earlier in the same session are reflected in the reload.
+            .execution_options(populate_existing=True)
+        )
+        return list(result.scalars().all())

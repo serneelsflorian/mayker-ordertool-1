@@ -1,6 +1,5 @@
 import uuid
 import logging
-from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.exceptions import (
     GuestNotFoundError,
@@ -20,55 +19,13 @@ from app.schemas.guest import (
     GuestCreate,
     GuestRead,
     GuestSelectionCreate,
-    GuestSelectionRead,
     GuestSelectionUpdate,
+)
+from app.services.guest_mapping import (
+    map_guest_to_read as _map_guest_to_read,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _line_total(quantity: int, price: Decimal | None) -> Decimal:
-    """Line total for a selection. A missing price counts as 0 (AC6)."""
-    return Decimal(quantity) * (price if price is not None else Decimal(0))
-
-
-def _quantize(value: Decimal) -> str:
-    return str(value.quantize(Decimal("0.01")))
-
-
-def _map_selection_to_read(selection: GuestSelection) -> GuestSelectionRead:
-    item = selection.menu_item
-    price = item.price if item is not None else None
-    return GuestSelectionRead(
-        id=selection.id,
-        menu_item_id=selection.menu_item_id,
-        item_name=item.name if item is not None else "",
-        item_price=_quantize(price) if price is not None else None,
-        item_category=item.category if item is not None else None,
-        note=selection.note,
-        quantity=selection.quantity,
-        line_total=_quantize(_line_total(selection.quantity, price)),
-    )
-
-
-def _map_guest_to_read(guest: Guest) -> GuestRead:
-    selections = list(guest.selections or [])
-    selection_reads = [_map_selection_to_read(sel) for sel in selections]
-    subtotal = sum(
-        (
-            _line_total(sel.quantity, sel.menu_item.price if sel.menu_item else None)
-            for sel in selections
-        ),
-        Decimal(0),
-    )
-    return GuestRead(
-        id=guest.id,
-        order_id=guest.order_id,
-        name=guest.name,
-        status=guest.status,
-        selections=selection_reads,
-        subtotal=_quantize(subtotal),
-    )
 
 
 class GuestService:

@@ -6,10 +6,12 @@ from app.constants import RESTAURANT_NAME
 from app.exceptions import MenuItemNotFoundError, OrderNotFoundError, ValidationError
 from app.models.menu_item import MenuItem
 from app.models.order import Order
+from app.repositories.guest_repository import GuestRepository
 from app.repositories.menu_item_repository import MenuItemRepository
 from app.repositories.order_repository import OrderRepository
 from app.schemas.menu_item import MenuItemCreate, MenuItemRead
-from app.schemas.order import OrderRead
+from app.schemas.order import OrderOverviewRead, OrderRead
+from app.services.guest_mapping import map_guest_to_read
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +21,9 @@ def _map_item_to_read(item: MenuItem) -> MenuItemRead:
     return MenuItemRead(
         id=item.id,
         name=item.name,
-        price=str(price_val.quantize(Decimal("0.01"))) if price_val is not None else None,
+        price=str(price_val.quantize(Decimal("0.01")))
+        if price_val is not None
+        else None,
         category=item.category,
     )
 
@@ -39,6 +43,7 @@ class OrderService:
         self._session = session
         self._order_repo = OrderRepository(session)
         self._item_repo = MenuItemRepository(session)
+        self._guest_repo = GuestRepository(session)
 
     async def create_order(self) -> OrderRead:
         order = Order(restaurant_name=RESTAURANT_NAME, state="open")
@@ -54,7 +59,9 @@ class OrderService:
             raise OrderNotFoundError(str(order_id))
         return _map_order_to_read(order)
 
-    async def add_menu_item(self, order_id: uuid.UUID, data: MenuItemCreate) -> MenuItemRead:
+    async def add_menu_item(
+        self, order_id: uuid.UUID, data: MenuItemCreate
+    ) -> MenuItemRead:
         # Verify order exists
         order = await self._order_repo.get_by_id(order_id)
         if order is None:
@@ -73,11 +80,17 @@ class OrderService:
                 try:
                     price_decimal = Decimal(raw)
                 except InvalidOperation:
-                    raise ValidationError("Price must be a positive number with up to 2 decimals")
+                    raise ValidationError(
+                        "Price must be a positive number with up to 2 decimals"
+                    )
                 if price_decimal <= 0:
-                    raise ValidationError("Price must be a positive number with up to 2 decimals")
+                    raise ValidationError(
+                        "Price must be a positive number with up to 2 decimals"
+                    )
                 if price_decimal.as_tuple().exponent < -2:
-                    raise ValidationError("Price must be a positive number with up to 2 decimals")
+                    raise ValidationError(
+                        "Price must be a positive number with up to 2 decimals"
+                    )
 
         category = data.category.strip() if data.category else None
         if not category:
@@ -92,7 +105,9 @@ class OrderService:
         item = await self._item_repo.insert(item)
         await self._session.commit()
         await self._session.refresh(item)
-        logger.info("Added menu item id=%s order_id=%s name=%s", item.id, order_id, name)
+        logger.info(
+            "Added menu item id=%s order_id=%s name=%s", item.id, order_id, name
+        )
         return _map_item_to_read(item)
 
     async def remove_menu_item(self, order_id: uuid.UUID, item_id: uuid.UUID) -> None:
@@ -108,3 +123,39 @@ class OrderService:
         await self._item_repo.delete(item)
         await self._session.commit()
         logger.info("Removed menu item id=%s from order_id=%s", item_id, order_id)
+
+    async def close_order(self, order_id: uuid.UUID) -> OrderRead:
+        order = await self._order_repo.get_by_id(order_id)
+        if order is None:
+            raise OrderNotFoundError(str(order_id))
+
+        # Closing is one-way and idempotent: closing an already-closed order is a
+        # harmless no-op, which avoids errors when two admins click close at once.
+        if order.state == "closed":
+            logger.info("Order id=%s already closed; no-op", order_id)
+            return _map_order_to_read(order)
+
+        order.state = "closed"
+        await self._session.commit()
+        await self._session.refresh(order)
+        logger.info("Closed order id=%s", order_id)
+        return _map_order_to_read(order)
+
+    async def get_order_overview(self, order_id: uuid.UUID) -> OrderOverviewRead:
+        order = await self._order_repo.get_by_id(order_id)
+        if order is None:
+            raise OrderNotFoundError(str(order_id))
+
+        # All guests are included regardless of status: in-progress ("editing")
+        # selections still count toward the final order.
+        guests = await self._guest_repo.list_by_order(order_id)
+        guest_reads = [map_guest_to_read(guest) for guest in guests]
+        submitted_count = sum(1 for guest in guests if guest.status == "submitted")
+        return OrderOverviewRead(
+            id=order.id,
+            restaurant_name=order.restaurant_name,
+            state=order.state,
+            guests=guest_reads,
+            submitted_count=submitted_count,
+            guest_count=len(guests),
+        )

@@ -40,6 +40,15 @@ export interface Guest {
   subtotal: string;
 }
 
+export interface OrderOverview {
+  id: string;
+  restaurant_name: string;
+  state: "open" | "closed";
+  guests: Guest[];
+  submitted_count: number;
+  guest_count: number;
+}
+
 export interface AddSelectionPayload {
   menu_item_id: string;
   note?: string | null;

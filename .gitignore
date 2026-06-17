@@ -9,6 +9,7 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+*.tsbuildinfo
 
 # Environment
 .env
@@ -28,6 +29,8 @@ Thumbs.db
 # Test artifacts
 e2e/uat/screenshots/
 e2e/uat/reports/
+playwright-report/
+test-results/
 coverage/
 .pytest_cache/
 htmlcov/

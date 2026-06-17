@@ -1,6 +1,10 @@
 """Integration tests for the orders router through ASGI."""
+
 import uuid
-import pytest
+
+from sqlalchemy import update
+
+from app.models.guest import Guest
 
 
 class TestCreateOrder:
@@ -120,3 +124,104 @@ class TestRemoveMenuItem:
         assert resp.status_code == 404
         body = resp.json()
         assert body["error"]["code"] == "MENU_ITEM_NOT_FOUND"
+
+
+class TestCloseOrder:
+    async def test_close_returns_200_with_closed_state(self, client):
+        order_id = (await client.post("/api/orders")).json()["id"]
+
+        resp = await client.post(f"/api/orders/{order_id}/close")
+        assert resp.status_code == 200
+        assert resp.json()["state"] == "closed"
+
+        # Persisted: a fresh read still reports closed.
+        get_resp = await client.get(f"/api/orders/{order_id}")
+        assert get_resp.json()["state"] == "closed"
+
+    async def test_close_is_idempotent(self, client):
+        order_id = (await client.post("/api/orders")).json()["id"]
+
+        first = await client.post(f"/api/orders/{order_id}/close")
+        second = await client.post(f"/api/orders/{order_id}/close")
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert second.json()["state"] == "closed"
+
+    async def test_close_missing_order_returns_404(self, client):
+        resp = await client.post(f"/api/orders/{uuid.uuid4()}/close")
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "ORDER_NOT_FOUND"
+
+    async def test_guest_mutation_after_close_returns_409(self, client):
+        order_id = (await client.post("/api/orders")).json()["id"]
+        item_id = (
+            await client.post(
+                f"/api/orders/{order_id}/menu-items",
+                json={"name": "Margherita", "price": "9.50"},
+            )
+        ).json()["id"]
+        guest_id = (
+            await client.post(f"/api/orders/{order_id}/guests", json={"name": "Sara"})
+        ).json()["id"]
+
+        await client.post(f"/api/orders/{order_id}/close")
+
+        resp = await client.post(
+            f"/api/orders/{order_id}/guests/{guest_id}/selections",
+            json={"menu_item_id": item_id, "quantity": 1},
+        )
+        assert resp.status_code == 409
+        assert resp.json()["error"]["code"] == "ORDER_CLOSED"
+
+
+class TestOrderOverview:
+    async def test_overview_groups_guests_with_counts(self, client, db_session):
+        order_id = (await client.post("/api/orders")).json()["id"]
+        item_id = (
+            await client.post(
+                f"/api/orders/{order_id}/menu-items",
+                json={"name": "Margherita", "price": "9.50"},
+            )
+        ).json()["id"]
+
+        alice = (
+            await client.post(f"/api/orders/{order_id}/guests", json={"name": "Alice"})
+        ).json()["id"]
+        await client.post(
+            f"/api/orders/{order_id}/guests/{alice}/selections",
+            json={"menu_item_id": item_id, "quantity": 2, "note": "no onions"},
+        )
+        # Bob joins but stays editing with no items.
+        await client.post(f"/api/orders/{order_id}/guests", json={"name": "Bob"})
+
+        # Mark Alice as submitted (submit endpoint belongs to Story 7).
+        await db_session.execute(
+            update(Guest).where(Guest.id == uuid.UUID(alice)).values(status="submitted")
+        )
+        await db_session.commit()
+
+        resp = await client.get(f"/api/orders/{order_id}/overview")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["guest_count"] == 2
+        assert body["submitted_count"] == 1
+        guests = {g["name"]: g for g in body["guests"]}
+        assert guests["Alice"]["status"] == "submitted"
+        assert guests["Alice"]["subtotal"] == "19.00"
+        assert guests["Alice"]["selections"][0]["note"] == "no onions"
+        assert guests["Bob"]["status"] == "editing"
+        assert guests["Bob"]["selections"] == []
+
+    async def test_overview_empty_when_no_guests(self, client):
+        order_id = (await client.post("/api/orders")).json()["id"]
+        resp = await client.get(f"/api/orders/{order_id}/overview")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["guests"] == []
+        assert body["guest_count"] == 0
+        assert body["submitted_count"] == 0
+
+    async def test_overview_missing_order_returns_404(self, client):
+        resp = await client.get(f"/api/orders/{uuid.uuid4()}/overview")
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "ORDER_NOT_FOUND"

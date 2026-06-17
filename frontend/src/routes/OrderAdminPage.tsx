@@ -1,23 +1,42 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { addMenuItem, getOrder, removeMenuItem } from "../api/orders";
-import type { CreateMenuItemPayload, MenuItem, Order } from "../api/types";
+import {
+  addMenuItem,
+  closeOrder,
+  getOrder,
+  getOrderOverview,
+  removeMenuItem,
+} from "../api/orders";
+import type {
+  CreateMenuItemPayload,
+  MenuItem,
+  Order,
+  OrderOverview,
+} from "../api/types";
 import MenuSetupCard from "../components/MenuSetupCard";
+import OrderCloseCard from "../components/OrderCloseCard";
+import OrderOverviewCard from "../components/OrderOverviewCard";
 import ShareLinkCard from "../components/ShareLinkCard";
 
 function useOrder(orderId: string) {
   const [order, setOrder] = useState<Order | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [overview, setOverview] = useState<OrderOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
 
   const loadOrder = useCallback(async () => {
     try {
-      const data = await getOrder(orderId);
+      const [data, overviewData] = await Promise.all([
+        getOrder(orderId),
+        getOrderOverview(orderId),
+      ]);
       setOrder(data);
       setMenuItems(data.menu_items);
+      setOverview(overviewData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load order");
     } finally {
@@ -28,6 +47,23 @@ function useOrder(orderId: string) {
   useEffect(() => {
     loadOrder();
   }, [loadOrder]);
+
+  const handleCloseOrder = useCallback(async () => {
+    setActionError(null);
+    setIsClosing(true);
+    try {
+      const closed = await closeOrder(orderId);
+      setOrder(closed);
+      // Refresh the overview so badges/counts reflect the final server state.
+      setOverview(await getOrderOverview(orderId));
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Failed to close order",
+      );
+    } finally {
+      setIsClosing(false);
+    }
+  }, [orderId]);
 
   const handleAddItem = useCallback(
     async (payload: CreateMenuItemPayload) => {
@@ -65,12 +101,15 @@ function useOrder(orderId: string) {
   return {
     order,
     menuItems,
+    overview,
     loading,
     error,
     actionError,
     isAddingItem,
+    isClosing,
     handleAddItem,
     handleRemoveItem,
+    handleCloseOrder,
   };
 }
 
@@ -95,12 +134,15 @@ function OrderAdminPageInner({ orderId }: { orderId: string }) {
   const {
     order,
     menuItems,
+    overview,
     loading,
     error,
     actionError,
     isAddingItem,
+    isClosing,
     handleAddItem,
     handleRemoveItem,
+    handleCloseOrder,
   } = useOrder(orderId);
 
   if (loading) {
@@ -147,6 +189,16 @@ function OrderAdminPageInner({ orderId }: { orderId: string }) {
         isAddingItem={isAddingItem}
       />
       <ShareLinkCard orderId={orderId} hasItems={menuItems.length > 0} />
+      <OrderOverviewCard
+        guests={overview?.guests ?? []}
+        submittedCount={overview?.submitted_count ?? 0}
+        guestCount={overview?.guest_count ?? 0}
+      />
+      <OrderCloseCard
+        state={order.state}
+        onClose={handleCloseOrder}
+        isClosing={isClosing}
+      />
     </div>
   );
 }
