@@ -44,7 +44,10 @@ function GuestOrderPageInner({ orderId }: { orderId: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <div
+        className="flex items-center justify-center py-20"
+        data-testid="guest-loading"
+      >
         <p className="text-sm" style={{ color: "var(--taupe)" }}>
           Loading order...
         </p>
