@@ -117,15 +117,66 @@ jobs:
             echo "present=false" >> "$GITHUB_OUTPUT"
             echo "No UAT scenarios found; skipping (UAT Generation is OPTIONAL)."
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         if: steps.check.outputs.present == 'true'
         with:
-          node-version: "20"
-      - name: Run UAT scenarios
+          python-version: "3.12"
+      # The UAT Gherkin scenarios are human/CI-readable acceptance artifacts
+      # derived from each story's acceptance criteria. There are no Cucumber
+      # step definitions wired up (the executable browser checks live in
+      # e2e/tests/*.spec.ts and run in the PR Tests pipeline), so this job
+      # validates that every scenario is well-formed Gherkin rather than
+      # driving a browser. A malformed or empty scenario fails the job.
+      - name: Validate UAT Gherkin scenarios
         if: steps.check.outputs.present == 'true'
         run: |
-          docker compose up -d --build
-          npm ci
-          npx playwright install --with-deps
-          npx playwright test e2e/uat
-          docker compose down -v
+          python - <<'PY'
+          import glob
+          import sys
+
+          STEP_KEYWORDS = ("Given ", "When ", "Then ", "And ", "But ", "* ")
+          files = sorted(glob.glob("e2e/uat/scenarios/*.feature"))
+          errors = []
+
+          for path in files:
+              with open(path, encoding="utf-8") as fh:
+                  raw = fh.readlines()
+
+              lines = []
+              for ln in raw:
+                  stripped = ln.strip()
+                  if not stripped or stripped.startswith("#"):
+                      continue
+                  lines.append(stripped)
+
+              if not any(ln.startswith("Feature:") for ln in lines):
+                  errors.append(f"{path}: missing 'Feature:' declaration")
+
+              scenario_idxs = [
+                  i for i, ln in enumerate(lines)
+                  if ln.startswith("Scenario:") or ln.startswith("Scenario Outline:")
+              ]
+              if not scenario_idxs:
+                  errors.append(f"{path}: no 'Scenario:' / 'Scenario Outline:' found")
+                  continue
+
+              for n, start in enumerate(scenario_idxs):
+                  end = scenario_idxs[n + 1] if n + 1 < len(scenario_idxs) else len(lines)
+                  body = lines[start + 1:end]
+                  header = lines[start]
+                  steps = [b for b in body if b.startswith(STEP_KEYWORDS)]
+                  if not steps:
+                      errors.append(f"{path}: '{header}' has no Given/When/Then steps")
+                  if header.startswith("Scenario Outline:") and not any(
+                      b.startswith("Examples:") for b in body
+                  ):
+                      errors.append(f"{path}: '{header}' is an Outline with no 'Examples:' table")
+
+          if errors:
+              print("UAT Gherkin validation failed:")
+              for e in errors:
+                  print(f"  - {e}")
+              sys.exit(1)
+
+          print(f"Validated {len(files)} UAT Gherkin scenario file(s); all well-formed.")
+          PY

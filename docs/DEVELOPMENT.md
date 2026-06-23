@@ -126,14 +126,19 @@ The PR test pipeline (`.github/workflows/pr-tests.yml`) needs **no secrets** —
 
 #### Optional: Slack notifications when a session finishes
 
-`.github/workflows/notify-slack.yml` posts to Slack when a session's PR is opened (plan ready) or marked ready for review (build ready). It is **opt-in** and off by default. To turn it on:
+`.github/workflows/notify-slack.yml` posts to Slack when a session's PR is opened (plan ready, draft PR) or marked ready for review (build ready). It is **opt-in** and off by default. Because it runs in CI rather than inside the session, it is unaffected by the cloud sandbox's network allowlist and secret limits, and it fires reliably where an in-session Stop hook would be killed first.
 
-| Name | Type | Value | Where |
-| --- | --- | --- | --- |
-| `NOTIFY_SLACK` | Variable | `true` | Settings → Secrets and variables → Actions → **Variables** |
-| `SLACK_WEBHOOK_URL` | Secret | your Slack Incoming Webhook URL | Settings → Secrets and variables → Actions → **Secrets** |
+**Enable it (three steps, all required):**
 
-With `NOTIFY_SLACK` unset the job is skipped entirely. Get the webhook from Slack → Apps → Incoming Webhooks → add to the target channel. Because the job runs in CI (not in a cloud session), it is unaffected by the session sandbox's network allowlist and secret limits, which is why this is more reliable than an in-session Stop hook.
+1. **Add a repository _Variable_** named `NOTIFY_SLACK` with value `true`.
+   Settings → Secrets and variables → Actions → **Variables** tab. This is a Variable, not a Secret — a common mix-up. Without it the job runs but posts nothing.
+2. **Add a repository _Secret_** named `SLACK_WEBHOOK_URL` with your Slack Incoming Webhook URL.
+   Settings → Secrets and variables → Actions → **Secrets** tab. Get the URL from Slack → Apps → **Incoming Webhooks** → add to the target channel → copy. (Your Slack workspace admin must allow the Incoming Webhooks app.)
+3. **Push this workflow file from your local CLI.** Workflow files require a token with the `workflow` scope; a cloud session's token does not have it, so a cloud agent cannot land changes to `.github/workflows/`.
+
+**Verify without opening a PR:** Actions tab → **Notify Slack on PR** → **Run workflow**. That uses the workflow's `workflow_dispatch` trigger to post a one-off "configured correctly" test message to your channel.
+
+**How it reports:** the job always runs on the trigger events and its log states exactly what happened — `NOTIFY_SLACK` off, missing webhook secret, or message sent (with the Slack HTTP response). Configuration problems surface as a **notice/warning, not a failed check**, so a half-finished setup never shows up as a red X on your PRs. Only a genuine non-200 from a configured webhook fails the job.
 
 ### 4. Development Environment
 

@@ -48,7 +48,7 @@
 
 Two artifacts are generated per feature:
 
-1. **Gherkin scenarios** — Executable Given/When/Then specifications derived from acceptance criteria. Run by CI on merge to main.
+1. **Gherkin scenarios** — Given/When/Then specifications derived from acceptance criteria. Validated for well-formedness by CI on merge to main. (They are executed as browser tests only if a BDD runner such as `playwright-bdd` and matching step definitions are wired up; the framework does not generate those by default, so the executable browser coverage lives in the E2E `*.spec.ts` specs.)
 2. **Manual UAT script** — Human-readable step-by-step clickthrough document with pass/fail checkboxes. For stakeholders, QA, or anyone verifying manually.
 
 Both are committed to the feature branch alongside the code.

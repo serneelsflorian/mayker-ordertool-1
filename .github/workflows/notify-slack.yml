@@ -6,38 +6,65 @@ name: Notify Slack on PR
 #   - /build-feature -> converts to ready       (event: ready_for_review)
 #
 # Runs in GitHub CI (outside the cloud-session sandbox), so it is not affected
-# by the session's network allowlist or secret-injection limits.
+# by the session's network allowlist or secret-injection limits. That is the
+# whole reason this is a CI job and not an in-session hook: on cloud surfaces
+# (Claude Code on the web, Routines) the Stop / SessionEnd hooks are killed
+# before they can fire, but every run ends by opening or updating a PR.
 #
-# Toggle:
-#   This workflow is OPT-IN. It only runs when the repository variable
-#   NOTIFY_SLACK is set to "true". Leave it unset (or set to anything else) and
-#   notifications are silently skipped, so devs who do not want them pay nothing.
+# ---------------------------------------------------------------------------
+# Setup (one-time). All three are required to actually post:
+#   1. VARIABLE  NOTIFY_SLACK = true
+#        Settings -> Secrets and variables -> Actions -> Variables
+#   2. SECRET    SLACK_WEBHOOK_URL = <your Slack Incoming Webhook URL>
+#        Settings -> Secrets and variables -> Actions -> Secrets
+#        (Slack -> Apps -> "Incoming Webhooks" -> Add to a channel -> copy URL)
+#   3. Commit/push this file from your LOCAL CLI. Workflow files require a token
+#      with the `workflow` scope; a cloud session's token does not have it.
 #
-# Setup (one-time, only if you want notifications):
-#   1. Create a Slack Incoming Webhook for the target channel:
-#      Slack -> Apps -> "Incoming Webhooks" -> Add to a channel -> copy the URL.
-#   2. Add it as a repo SECRET named SLACK_WEBHOOK_URL:
-#      GitHub -> repo Settings -> Secrets and variables -> Actions -> Secrets.
-#   3. Add a repo VARIABLE named NOTIFY_SLACK with value "true":
-#      GitHub -> repo Settings -> Secrets and variables -> Actions -> Variables.
-#   4. Commit/push this file from your LOCAL CLI (workflow files need a token
-#      with the `workflow` scope; the cloud session's token does not have it).
+# Verify without opening a PR: Actions tab -> "Notify Slack on PR" ->
+# "Run workflow" (this uses the workflow_dispatch trigger below and posts a
+# one-off test message).
+#
+# This job ALWAYS runs on the events below and reports, in its log, exactly why
+# it did or did not post (toggle off, missing secret, or sent). It never fails
+# the build on a configuration problem -- it surfaces a warning instead -- so a
+# half-finished setup never shows up as a scary red X on your PRs.
+# ---------------------------------------------------------------------------
 
 on:
   pull_request:
     branches: [main]
     types: [opened, ready_for_review]
+  workflow_dispatch: {} # manual "Run workflow" button to test your setup
 
 jobs:
   notify:
     name: Post PR status to Slack
-    # Opt-in toggle: set repo variable NOTIFY_SLACK="true" to enable.
-    if: ${{ vars.NOTIFY_SLACK == 'true' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Check toggle and secret
+        id: precheck
+        env:
+          NOTIFY_SLACK: ${{ vars.NOTIFY_SLACK }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ "$NOTIFY_SLACK" != "true" ]; then
+            echo "::notice::Slack notifications are OFF. To enable, add a repository VARIABLE NOTIFY_SLACK=true (Settings -> Secrets and variables -> Actions -> Variables). Note: a Variable, not a Secret. Skipping."
+            echo "send=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "::warning::NOTIFY_SLACK is true but the SLACK_WEBHOOK_URL secret is missing. Add it under Settings -> Secrets and variables -> Actions -> Secrets. Skipping without failing the build."
+            echo "send=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "send=true" >> "$GITHUB_OUTPUT"
+
       - name: Send Slack message
+        if: steps.precheck.outputs.send == 'true'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          EVENT_NAME: ${{ github.event_name }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
@@ -46,22 +73,27 @@ jobs:
           ACTION: ${{ github.event.action }}
           REPO: ${{ github.repository }}
         run: |
-          if [ -z "$SLACK_WEBHOOK_URL" ]; then
-            echo "::error::SLACK_WEBHOOK_URL secret is not set. Add it in Settings -> Secrets and variables -> Actions."
-            exit 1
-          fi
-
-          if [ "$ACTION" = "ready_for_review" ]; then
-            STAGE="Build ready for review"
-          elif [ "$IS_DRAFT" = "true" ]; then
-            STAGE="Plan ready for review (draft PR)"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            TEXT=":white_check_mark: *Slack notifications are configured correctly* for ${REPO}. (Manual test message.)"
           else
-            STAGE="PR opened"
+            if [ "$ACTION" = "ready_for_review" ]; then
+              STAGE="Build ready for review"
+            elif [ "$IS_DRAFT" = "true" ]; then
+              STAGE="Plan ready for review (draft PR)"
+            else
+              STAGE="PR opened"
+            fi
+            TEXT="${STAGE} in ${REPO}: *${PR_TITLE}*\nBranch: \`${PR_BRANCH}\`  -  by ${PR_AUTHOR}\n${PR_URL}"
           fi
-
-          TEXT="${STAGE} in ${REPO}: *${PR_TITLE}*\nBranch: \`${PR_BRANCH}\`  -  by ${PR_AUTHOR}\n${PR_URL}"
 
           payload="$(jq -n --arg text "$TEXT" '{text: $text}')"
 
-          curl -sS -X POST -H 'Content-type: application/json' \
-            --data "$payload" "$SLACK_WEBHOOK_URL"
+          http="$(curl -sS -o /tmp/slack_resp -w '%{http_code}' \
+            -X POST -H 'Content-type: application/json' \
+            --data "$payload" "$SLACK_WEBHOOK_URL")"
+          echo "Slack responded HTTP $http: $(cat /tmp/slack_resp)"
+
+          if [ "$http" != "200" ]; then
+            echo "::error::Slack webhook returned HTTP $http. Check that SLACK_WEBHOOK_URL is a valid Incoming Webhook and that the Incoming Webhooks app is permitted in your Slack workspace."
+            exit 1
+          fi
